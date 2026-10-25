@@ -19,6 +19,9 @@ namespace ParamIDs
     inline constexpr const char* air = "tone.air";
     inline constexpr const char* focus = "tone.focus";
     inline constexpr const char* body = "tone.body";
+    // BASS PUNCH 0 to 10; TRANSIENTS -10 (softer attacks) to +10 (sharper).
+    inline constexpr const char* bassPunch = "dyn.bassPunch";
+    inline constexpr const char* transients = "dyn.transients";
 }
 
 namespace Parameters

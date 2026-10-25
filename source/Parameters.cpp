@@ -56,6 +56,8 @@ namespace Parameters
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::air, 4 }, "Air", markedRange (toneMarks), 0.0f));
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::focus, 5 }, "Focus", markedRange (toneMarks), 0.0f));
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::body, 6 }, "Body", steppedRange (-5.0f, 5.0f, 0.1f), 0.0f));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::bassPunch, 7 }, "Bass Punch", steppedRange (0.0f, 10.0f, 0.1f), 0.0f));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::transients, 8 }, "Transients", steppedRange (-10.0f, 10.0f, 0.1f), 0.0f));
         return layout;
     }
 }

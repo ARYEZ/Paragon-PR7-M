@@ -139,12 +139,16 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
              later ("WIDTH: narrower or wider stereo. The bass always stays in the middle.", 6));
 
     // Down the right: the character.
-    addKnob ("dyn.transients", P (1160, 170), 36, numbers (-10, 10, 2, true), "TRANSIENTS",
-             later ("TRANSIENTS: sharper attacks (right) or smoother ones (left)", 5));
+    attach (addKnob ("dyn.transients", P (1160, 170), 36, numbers (-10, 10, 2, true), "TRANSIENTS",
+                     "TRANSIENTS: sharper attacks (right) or softer ones (left), up to 6 dB on the start of each hit. "
+                     "What sustains is left alone."),
+            ParamIDs::transients);
     addKnob ("colour.analog", P (1305, 326), 38, numbers (0, 10, 1, false), "ANALOG",
              later ("ANALOG: a touch of harmonics, for dimension and colour", 6));
-    addKnob ("dyn.bassPunch", P (1160, 480), 36, numbers (0, 10, 1, false), "BASS PUNCH",
-             later ("BASS PUNCH: more low end, and tighter, at the same time", 5));
+    attach (addKnob ("dyn.bassPunch", P (1160, 480), 36, numbers (0, 10, 1, false), "BASS PUNCH",
+                     "BASS PUNCH: more low end, and tighter, at the same time. Lifts the lows up to 6 dB, "
+                     "and takes the lift back on loud bass notes, so the low end comes out fuller and more even."),
+            ParamIDs::bassPunch);
 
     // The header: the finish.
     auto* settings = new juce::TextButton();

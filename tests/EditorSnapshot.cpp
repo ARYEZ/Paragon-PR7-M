@@ -10,8 +10,8 @@
 // PARAGON_SNAPSHOT_WIDTH sets the window width (default: the canvas's;
 // twice that for a 2x render). PARAGON_SNAPSHOT_FINISH=black or =neon picks
 // the finish. PARAGON_SNAPSHOT_DEMO=1 sets the VU needle, the loudness
-// readout, AIR (+3), FOCUS (-3), BODY (+1), PUSH (7.5), VOLUME (6 dB) and
-// PUSH and VOLUME's LEDs, to show them.
+// readout, AIR (+3), FOCUS (-3), BODY (+1), BASS PUNCH (4), TRANSIENTS (+4),
+// PUSH (7.5), VOLUME (6 dB) and PUSH and VOLUME's LEDs, to show them.
 TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
 {
     const auto path = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT", "editor.png");
@@ -49,7 +49,8 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
                 volume->setValueNotifyingHost (volume->convertTo0to1 (6.0f));
             if (auto* push = processor.getParameters().getParameter (ParamIDs::push))
                 push->setValueNotifyingHost (push->convertTo0to1 (7.5f));
-            for (const auto& [id, value] : { std::pair (ParamIDs::air, 3.0f), { ParamIDs::focus, -3.0f }, { ParamIDs::body, 1.0f } })
+            for (const auto& [id, value] : { std::pair (ParamIDs::air, 3.0f), { ParamIDs::focus, -3.0f }, { ParamIDs::body, 1.0f },
+                                             { ParamIDs::bassPunch, 4.0f }, { ParamIDs::transients, 4.0f } })
                 if (auto* parameter = processor.getParameters().getParameter (id))
                     parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
         }
