@@ -2,6 +2,19 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.3.0
+
+**VOLUME works: louder, without clipping.** The first knob that changes the sound. The other knobs still do nothing; PUSH (the compressor) comes next.
+
+- **VOLUME** turns the mix up, 0 to +15 dB, into a limiter that keeps every peak under **−1 dBTP**, the level streaming services ask for (where the readout turns red). Double-click the knob to go back to 0.
+- **The green LEDs** round VOLUME show how much the limiter is turning down, one LED per dB.
+- **No clicks or crackle:** the limiter looks 3 ms ahead, so it's already turning down when a peak arrives, then lets go over about a tenth of a second. Both sides move together, so the stereo picture stays put.
+- **It catches peaks between the samples too**, the ones that clip on conversion or as MP3/AAC.
+- **A small delay:** the look-ahead delays the audio by about 3.3 ms. PR7-M tells BeatMaker, so your track stays in time.
+- **BYPASS now has something to compare:** with VOLUME up, flick BYPASS to hear your mix as it came in, at the same loudness.
+- **Below the ceiling, the sound is untouched:** if nothing reaches −1 dBTP, the audio comes out exactly as it went in, only 3.3 ms later.
+- **The limiter is always on**, even at VOLUME 0: a mix that already peaks above −1 dBTP gets caught.
+
 ## 0.2.0
 
 **The meter, BYPASS and RESET work.** The VU meter now moves, there's a loudness readout under it, and the two levers do their jobs. **The knobs still don't change the sound**: the audio passes through unchanged. VOLUME (the limiter) comes next.
