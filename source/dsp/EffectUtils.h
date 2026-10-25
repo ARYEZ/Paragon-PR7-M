@@ -2,7 +2,9 @@
 
 #include <juce_dsp/juce_dsp.h>
 
+#include <array>
 #include <cmath>
+#include <vector>
 
 namespace effects
 {
@@ -132,6 +134,51 @@ namespace effects
 
     private:
         float attack = 0.1f, release = 0.001f, envelope = 0.0f, gain = 1.0f;
+    };
+
+    // A fixed delay of whole samples, per channel: lines the mix as it came
+    // in up with the processed mix when the modules add latency (BYPASS).
+    // A delay of 0 passes the audio straight through.
+    class FixedDelay
+    {
+    public:
+        void prepare (int delaySamples)
+        {
+            length = juce::jmax (0, delaySamples);
+            for (auto& line : lines)
+                line.assign ((size_t) length + 1, 0.0f);
+            reset();
+        }
+
+        void reset()
+        {
+            for (auto& line : lines)
+                std::fill (line.begin(), line.end(), 0.0f);
+            position = 0;
+        }
+
+        void process (const juce::dsp::AudioBlock<float>& block) noexcept
+        {
+            if (length == 0)
+                return;
+            const auto numChannels = juce::jmin ((int) block.getNumChannels(), maxChannels);
+            const auto size = length + 1;
+            for (size_t i = 0; i < block.getNumSamples(); ++i)
+            {
+                for (int channel = 0; channel < numChannels; ++channel)
+                {
+                    auto& line = lines[(size_t) channel];
+                    auto& sample = block.getChannelPointer ((size_t) channel)[i];
+                    line[(size_t) position] = sample;
+                    sample = line[(size_t) ((position + 1) % size)];
+                }
+                position = (position + 1) % size;
+            }
+        }
+
+    private:
+        std::array<std::vector<float>, maxChannels> lines;
+        int length = 0, position = 0;
     };
 
     // Knob "0 to 10" to a frequency, spaced evenly by ear (logarithmically).

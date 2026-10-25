@@ -18,11 +18,16 @@ namespace metering
     {
     public:
         static constexpr int tapsPerPhase = 32;
-        static constexpr int maxFactor = 4;
+        static constexpr int maxFactor = 8;
 
-        void prepare (double sampleRate)
+        // `oversampling` is for 44.1/48 kHz: 4 as the standard says (the
+        // meter), or 8 for a closer look (the limiter: 4x can miss a peak
+        // falling between its points by up to about 0.2 dB at 14 kHz). Half
+        // that from 96 kHz, a quarter from 192 kHz.
+        void prepare (double sampleRate, int oversampling = 4)
         {
-            factor = sampleRate < 96000.0 ? 4 : sampleRate < 192000.0 ? 2 : 1;
+            const auto steps = sampleRate < 96000.0 ? 1 : sampleRate < 192000.0 ? 2 : 4;
+            factor = juce::jlimit (1, maxFactor, oversampling / steps);
             design();
             reset();
         }
@@ -34,35 +39,45 @@ namespace metering
             positions.fill (0);
         }
 
-        // The highest true peak (linear, 1 = 0 dBTP) of these samples of one
-        // channel (0 or 1).
-        float process (int channel, const float* samples, int numSamples) noexcept
+        // How late next()'s readings are, in samples: the interpolator's delay.
+        static constexpr int delay = tapsPerPhase / 2;
+
+        // Takes the next sample of one channel (0 or 1) and returns the
+        // highest point of the waveform (linear) between the two samples
+        // `delay` and `delay - 1` back, both included: what a limiter needs
+        // to keep every point of that stretch under its ceiling.
+        float next (int channel, float sample) noexcept
         {
             auto& past = history[(size_t) juce::jlimit (0, 1, channel)];
             auto& position = positions[(size_t) juce::jlimit (0, 1, channel)];
+
+            // Kept twice over, so the last `tapsPerPhase` samples are always
+            // in one run, oldest first: past[position + 1 ...].
+            past[(size_t) position] = past[(size_t) (position + tapsPerPhase)] = sample;
+            const auto* window = past.data() + position + 1;
+            position = (position + 1) % tapsPerPhase;
+
+            // Phase 0 is the sample `delay` back itself; the others fall
+            // between it and the one after.
+            auto peak = std::fmax (std::abs (window[tapsPerPhase - 1 - delay]), std::abs (window[tapsPerPhase - delay]));
+            for (int phase = 1; phase < factor; ++phase)
+            {
+                const auto* taps = phases[(size_t) phase].data();
+                auto value = 0.0f;
+                for (int t = 0; t < tapsPerPhase; ++t)
+                    value += taps[t] * window[t];
+                peak = std::fmax (peak, std::abs (value));
+            }
+            return peak;
+        }
+
+        // The highest true peak (linear, 1 = 0 dBTP) of these samples of one
+        // channel (0 or 1), for the meter.
+        float process (int channel, const float* samples, int numSamples) noexcept
+        {
             auto peak = 0.0f;
             for (int i = 0; i < numSamples; ++i)
-            {
-                const auto sample = samples[i];
-                peak = std::fmax (peak, std::abs (sample));
-                if (factor == 1)
-                    continue;
-
-                // Kept twice over, so the last `tapsPerPhase` samples are
-                // always in one run, oldest first: past[position + 1 ...].
-                past[(size_t) position] = past[(size_t) (position + tapsPerPhase)] = sample;
-                const auto* window = past.data() + position + 1;
-                position = (position + 1) % tapsPerPhase;
-
-                for (int phase = 1; phase < factor; ++phase)   // phase 0 is the sample itself
-                {
-                    const auto* taps = phases[(size_t) phase].data();
-                    auto value = 0.0f;
-                    for (int t = 0; t < tapsPerPhase; ++t)
-                        value += taps[t] * window[t];
-                    peak = std::fmax (peak, std::abs (value));
-                }
-            }
+                peak = std::fmax (peak, std::fmax (std::abs (samples[i]), next (channel, samples[i])));
             return peak;
         }
 

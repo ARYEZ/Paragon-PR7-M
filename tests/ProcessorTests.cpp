@@ -30,11 +30,13 @@ namespace
         }
     }
 
-    bool identical (const juce::AudioBuffer<float>& a, const juce::AudioBuffer<float>& b)
+    // `output` is `input` exactly, only `latency` samples later (silence
+    // before it): VOLUME's limiter delays the audio.
+    bool identical (const juce::AudioBuffer<float>& input, const juce::AudioBuffer<float>& output, int latency)
     {
-        for (int channel = 0; channel < a.getNumChannels(); ++channel)
-            for (int i = 0; i < a.getNumSamples(); ++i)
-                if (! juce::exactlyEqual (a.getSample (channel, i), b.getSample (channel, i)))
+        for (int channel = 0; channel < input.getNumChannels(); ++channel)
+            for (int i = 0; i < input.getNumSamples(); ++i)
+                if (! juce::exactlyEqual (output.getSample (channel, i), i < latency ? 0.0f : input.getSample (channel, i - latency)))
                     return false;
         return true;
     }
@@ -42,12 +44,14 @@ namespace
 
 TEST_CASE ("At its defaults it passes audio through untouched, bit for bit", "[processor]")
 {
+    // Below the limiter's ceiling (the tone peaks at -6 dBFS).
     ParagonPR7MAudioProcessor processor;
     processor.prepareToPlay (sampleRate, blockSize);
+    REQUIRE (processor.getLatencySamples() > 0);
     const auto input = stereoTone (4800);
     auto output = input;
     process (processor, output);
-    CHECK (identical (input, output));
+    CHECK (identical (input, output, processor.getLatencySamples()));
 }
 
 TEST_CASE ("Defaults that should be 0 read back as exactly 0", "[processor]")
@@ -85,5 +89,5 @@ TEST_CASE ("Mono and stereo tracks are supported, mismatched layouts aren't", "[
     const auto input = stereoTone (4800, 1);
     auto output = input;
     process (processor, output);
-    CHECK (identical (input, output));
+    CHECK (identical (input, output, processor.getLatencySamples()));
 }

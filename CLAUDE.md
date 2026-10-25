@@ -18,8 +18,9 @@ PR7-C runs on many tracks, so it adds no delay and stays light. Mastering runs o
 ## What's here
 
 - **The plugin:** true stereo (stereo in/out, or mono in/out). Identity: `Paragon PR7-M`, plugin code `Pr7m`, bundle `com.paragon.paragonpr7m`, maker code `Prgn`, VST3 category Fx / Mastering.
-  - Parameters so far: `panel.bypass` (version hint 1). Each step adds its own. Input and output peak sources (`LevelMeterSource`) are kept (no meter uses them on the panel now).
-  - **Signal path in `processChunk`:** the input is copied to `dry`, the modules run in place (none yet), then `effects::MatchedBypass` (`dsp/MatchedBypass.h`) mixes, then the **output** is metered (what's heard). Hosts sending bigger blocks than `prepareToPlay` said are split into chunks. When a module adds latency, `dry` must be delayed by the same amount.
+  - Parameters so far: `panel.bypass` (version hint 1), `dyn.volume` (2; 0 to 15 dB in 0.1 steps, default 0). Each step adds its own. Input and output peak sources (`LevelMeterSource`) are kept (no meter uses them on the panel now).
+  - **Signal path in `processChunk`:** the input is copied to `dry` and delayed by the chain's latency (`effects::FixedDelay`), the modules run in place (so far VOLUME's limiter), then `effects::MatchedBypass` (`dsp/MatchedBypass.h`) mixes, then the **output** is metered (what's heard). Hosts sending bigger blocks than `prepareToPlay` said are split into chunks. A module that adds latency must add it to `setLatencySamples` and to `dryDelay`.
+  - **VOLUME (`dsp/Limiter.h`, `effects::TruePeakLimiter`):** gain (0 to +15 dB, smoothed 50 ms) into a look-ahead true-peak limiter, ceiling **−1 dBTP** (aims at −1.06 for what detection misses), always on (a mix peaking over −1 dBTP is caught at VOLUME 0). Detection is `TruePeak::next` at **8×** (the meter stays 4×, the standard's); a hold over the 3 ms look-ahead + 1 sample, a 100 ms release, then a 3 ms moving average, applied to audio delayed by `lookAhead − 1 + TruePeak::delay` (16) samples: 159 at 48 kHz, fixed whatever VOLUME is, reported from the constructor (48 kHz guess) and in `prepareToPlay`. Stereo linked. Gain is exactly 1 with nothing to limit, so audio under the ceiling comes out bit for bit, only later. Measured with a 16× reference: music-like material (content to 20 kHz) stays under −1.0 dBTP; full-band white noise to Nyquist slips ~1 dB past (a known limit; a 4× meter still reads it under). Under 1% of a core. Its gain reduction drives VOLUME's LEDs (`getVolumeReduction`).
   - **BYPASS at matched loudness:** measures the short-term loudness of `dry` and of the processed mix and, bypassed, plays `dry` turned to the processed loudness (20 ms crossfade, match smoothed over 0.5 s, held below −60 LUFS, ±24 dB, a boost capped so `dry`'s peaks over the last 3 s stay under −0.3 dBFS). The modules keep running while bypassed. A 0 dB match is exactly 1: with nothing processing, bypass is bit for bit. The host's own bypass is left as JUCE's plain bypass (not linked to `panel.bypass`).
   - **Metering (`dsp/Loudness.h`, `dsp/TruePeak.h`, `dsp/VuBallistics.h`):** BS.1770-4 K-weighting and short-term loudness (3 s, 100 ms steps; mono counts as one channel); true peak, 4× oversampled below 96 kHz (2× to 192 kHz), 32 taps per phase; the VU needle as a spring (damping 0.8127, 13.51 rad/s: 99% in 300 ms, 1.25% overshoot), run per channel at the sample rate, the louder side shown, scaled so a sine reads its peak. Handed to the UI by atomics (`getVuLevel`, `getShortTermLufs`, `getTruePeak` via `HeldPeakSource`, cleared on a click and when the host starts playing).
   - **0 VU reference:** −18, −14 (default) or −10 dBFS, in the gear menu, saved in the project (a property of the parameter state, `vuReference`, not a host parameter). Printed small on the VU face.
@@ -29,7 +30,8 @@ PR7-C runs on many tracks, so it adds no delay and stays light. Mastering runs o
   - **`LoudnessDisplay`** (`meter.loudness`), under the VU: short-term LUFS on the left, max true peak (dBTP, red above −1) on the right, seven-segment. A click clears the true peak.
   - **Levers:** BYPASS up = bypassed (its tip glows), attached to `panel.bypass`. RESET is momentary: up, then back down after 250 ms.
   - **PUSH and VOLUME's green LED rings** (`setGainReduction`): 12 LEDs, 1 per dB, on the knob's dark rim along the top end of its travel, drawn over the knob (`paintOverChildren`).
-  - `PARAGON_SNAPSHOT_DEMO=1` sets the needle, the readout (−9.8 LUFS, −0.3 dBTP) and the LEDs for a render.
+  - **VOLUME's knob** is attached to `dyn.volume` (double-click: 0). The other knobs are still inert.
+  - `PARAGON_SNAPSHOT_DEMO=1` sets the needle, the readout (−9.8 LUFS, −0.3 dBTP), VOLUME (6 dB) and the LEDs for a render.
 - **Carried over from PR7-C** (see its CLAUDE.md for the history): `ParagonLookAndFeel` (incl. black menus and dialogs), `Finish` (Pearl White / White + Neon / Pearl Black; settings file "Paragon PR7-M"; Pearl Black is PR7-G's face gradient), `Controls` (`Knob`, `Led`, `LeverSwitch`, `RoundButton`, `GainReductionMeter`), `LevelMeter` (orange-to-pink LEDs; not on the panel now), `LedDisplay`, `Logo` (now "-M"), `dsp/EffectUtils.h` (`BypassFade`), `dsp/Biquad.h`.
 - **`reference/pr7c/dsp/`:** PR7-C's EQ, compressor, limiter, saturation, console colour and stereo tools. **Not compiled.** Starting points to copy into `source/dsp/` and adapt when a module needs them (the limiter would want look-ahead here).
 
@@ -65,7 +67,7 @@ The owner wants PR7-M to work like a well-known all-in-one mastering processor: 
 One step at a time, each built, tested, rendered and shown to the owner first.
 
 1. **The panel (approved) and the metering:** the VU needle's movement, LUFS and true-peak readouts, BYPASS (matched loudness) and RESET. Built; awaiting the owner's listening test.
-2. **VOLUME:** the look-ahead true-peak limiter.
+2. **VOLUME:** the look-ahead true-peak limiter. Built; to show the owner.
 3. **PUSH:** the glue compressor macro.
 4. **BODY, FOCUS, AIR.**
 5. **BASS PUNCH, TRANSIENTS.**
@@ -78,6 +80,12 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 - **0 VU** is choosable (−18 / −14 / −10 dBFS), −14 by default, saved with the project.
 - **The readout** is an LED strip under the VU: **short-term LUFS** and **max true peak** only (not integrated, momentary or LRA).
 - **BYPASS** matches loudness automatically; **RESET** is momentary, no confirmation.
+
+## Decisions (step 2, our defaults, to confirm with the owner)
+
+- **VOLUME** 0 to 15 = 0 to +15 dB into the limiter.
+- **Ceiling** fixed at −1 dBTP (streaming's recommendation; the readout's red line).
+- **The limiter is always on**, even at VOLUME 0 (switching it off would change the latency).
 
 ## Names
 

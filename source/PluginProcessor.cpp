@@ -7,8 +7,12 @@ ParagonPR7MAudioProcessor::ParagonPR7MAudioProcessor()
                           .withInput ("Input", juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       parameters (*this, nullptr, "PARAMETERS", Parameters::createLayout()),
-      bypass (parameters.getRawParameterValue (ParamIDs::bypass))
+      bypass (parameters.getRawParameterValue (ParamIDs::bypass)),
+      volume (parameters.getRawParameterValue (ParamIDs::volume))
 {
+    // Until prepareToPlay gives the real sample rate, report the delay at
+    // the usual 48 kHz, for hosts that ask before then.
+    setLatencySamples (effects::TruePeakLimiter::latencyFor (48000.0));
 }
 
 bool ParagonPR7MAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -22,7 +26,12 @@ bool ParagonPR7MAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 
 void ParagonPR7MAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    limiter.prepare (sampleRate);
+    limiter.setVolumeImmediately (volume->load());
+    setLatencySamples (limiter.getLatency());
+
     dry.setSize (metering::maxChannels, juce::jmax (1, samplesPerBlock));
+    dryDelay.prepare (limiter.getLatency());
     matchedBypass.prepare (sampleRate);
     matchedBypass.setImmediately (bypass->load() >= 0.5f);
     loudness.prepare (sampleRate);
@@ -66,8 +75,12 @@ void ParagonPR7MAudioProcessor::processChunk (juce::dsp::AudioBlock<float> block
     const auto numChannels = (int) block.getNumChannels(), numSamples = (int) block.getNumSamples();
     auto dryBlock = juce::dsp::AudioBlock<float> (dry).getSubsetChannelBlock (0, (size_t) numChannels).getSubBlock (0, (size_t) numSamples);
     dryBlock.copyFrom (block);
+    dryDelay.process (dryBlock);
 
-    // The mastering modules will go here, in their order (see CLAUDE.md).
+    // The modules, in their order (see CLAUDE.md). Still to come: BODY /
+    // FOCUS / AIR, BASS PUNCH, TRANSIENTS, PUSH, ANALOG, WIDTH.
+    limiter.setVolume (volume->load());
+    volumeReduction.push (limiter.process (block));
 
     matchedBypass.process (dryBlock, block, bypass->load() >= 0.5f);
 

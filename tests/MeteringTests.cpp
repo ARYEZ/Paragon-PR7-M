@@ -260,7 +260,7 @@ TEST_CASE ("Matched bypass switches with a crossfade, not a click", "[bypass]")
 }
 
 //==============================================================================
-TEST_CASE ("With nothing processing, BYPASS on gives the input back bit for bit", "[processor][bypass]")
+TEST_CASE ("With nothing turned up, BYPASS on gives the input back bit for bit", "[processor][bypass]")
 {
     constexpr double sampleRate = 48000.0;
     ParagonPR7MAudioProcessor processor;
@@ -269,9 +269,11 @@ TEST_CASE ("With nothing processing, BYPASS on gives the input back bit for bit"
     const auto input = sine (sampleRate, 440.0, -6.0f, 4.0);
     auto output = input;
     process (processor, output);
+    // Only later, by the limiter's delay: BYPASS's mix is delayed to match.
+    const auto latency = processor.getLatencySamples();
     for (int channel = 0; channel < 2; ++channel)
         for (int i = 0; i < input.getNumSamples(); ++i)
-            if (! juce::exactlyEqual (input.getSample (channel, i), output.getSample (channel, i)))
+            if (! juce::exactlyEqual (i < latency ? 0.0f : input.getSample (channel, i - latency), output.getSample (channel, i)))
                 FAIL ("sample " << i << " of channel " << channel << " changed");
 }
 
@@ -309,7 +311,11 @@ TEST_CASE ("RESET leaves BYPASS alone and sets every other parameter to its defa
 {
     ParagonPR7MAudioProcessor processor;
     setBypass (processor, true);
+    auto* volume = processor.getParameters().getParameter (ParamIDs::volume);
+    REQUIRE (volume != nullptr);
+    volume->setValueNotifyingHost (volume->convertTo0to1 (9.0f));
     processor.resetKnobs();
+    CHECK (juce::exactlyEqual (processor.getParameters().getRawParameterValue (ParamIDs::volume)->load(), 0.0f));
     CHECK (processor.getParameters().getRawParameterValue (ParamIDs::bypass)->load() >= 0.5f);
     for (auto* parameter : processor.getParameters().processor.getParameters())
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter); ranged->getParameterID() != ParamIDs::bypass)

@@ -4,15 +4,19 @@
 
 #include "LevelMeterSource.h"
 #include "Parameters.h"
+#include "dsp/EffectUtils.h"
+#include "dsp/Limiter.h"
 #include "dsp/Loudness.h"
 #include "dsp/MatchedBypass.h"
 #include "dsp/TruePeak.h"
 #include "dsp/VuBallistics.h"
 
 // The mastering processor. True stereo (stereo in, stereo out), or mono in,
-// mono out. So far it passes the audio through (the modules are built one
-// at a time, see CLAUDE.md), with BYPASS at matched loudness, and meters
-// the output: the VU needle, short-term loudness and true peak.
+// mono out. The modules are built one at a time (see CLAUDE.md); so far
+// VOLUME, the true-peak limiter at the end of the chain, which delays the
+// audio by a few milliseconds (reported to the host). BYPASS is at matched
+// loudness, and the output is metered: the VU needle, short-term loudness
+// and true peak.
 class ParagonPR7MAudioProcessor final : public juce::AudioProcessor
 {
 public:
@@ -58,6 +62,9 @@ public:
     float getShortTermLufs() const noexcept { return shortTermLufs.load (std::memory_order_relaxed); }
     float getTruePeak() const noexcept { return truePeakHold.get(); }
     void resetTruePeak() noexcept { truePeakHold.reset(); }
+
+    // How much VOLUME's limiter is turning down (dB), for its LED ring.
+    GainReductionSource& getVolumeReduction() noexcept { return volumeReduction; }
     // Counts the blocks metered, so the UI can tell when the host has
     // stopped sending audio (and let the needle fall).
     juce::uint32 getMeteredBlocks() const noexcept { return meteredBlocks.load (std::memory_order_relaxed); }
@@ -80,11 +87,16 @@ private:
 
     juce::AudioProcessorValueTreeState parameters;
     std::atomic<float>* bypass = nullptr;
+    std::atomic<float>* volume = nullptr;
     std::array<LevelMeterSource, 2> inputMeters, outputMeters;
 
-    // The mix as it came in, for BYPASS. (When the modules add latency, it
-    // will need delaying by the same amount, to stay aligned.)
+    effects::TruePeakLimiter limiter;
+    GainReductionSource volumeReduction;
+
+    // The mix as it came in, for BYPASS, delayed as much as the modules
+    // delay the processed mix, so the two stay aligned.
     juce::AudioBuffer<float> dry;
+    effects::FixedDelay dryDelay;
     effects::MatchedBypass matchedBypass;
 
     metering::ShortTermLoudness loudness;

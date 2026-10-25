@@ -10,7 +10,7 @@
 // PARAGON_SNAPSHOT_WIDTH sets the window width (default: the canvas's;
 // twice that for a 2x render). PARAGON_SNAPSHOT_FINISH=black or =neon picks
 // the finish. PARAGON_SNAPSHOT_DEMO=1 sets the VU needle, the loudness
-// readout and the PUSH and VOLUME LEDs, to show them.
+// readout, VOLUME (6 dB) and the PUSH and VOLUME LEDs, to show them.
 TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
 {
     const auto path = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT", "editor.png");
@@ -44,6 +44,8 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
             view->getVuMeter().setNeedle (-3.0f);
             view->getLoudnessDisplay().setReadings (-9.8f, -0.3f);
             view->setGainReduction (3.0f, 5.0f);
+            if (auto* volume = processor.getParameters().getParameter (ParamIDs::volume))
+                volume->setValueNotifyingHost (volume->convertTo0to1 (6.0f));
         }
 
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());

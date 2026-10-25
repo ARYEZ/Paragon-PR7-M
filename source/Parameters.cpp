@@ -12,7 +12,7 @@ namespace Parameters
         // (minimum + step x n), which a fused multiply-add (as on Apple
         // silicon) rounds a hair off, so 0 dB wasn't exactly 0 (found in
         // PR7-C, where it kept EQ bands running at their defaults).
-        [[maybe_unused]] juce::NormalisableRange<float> steppedRange (float minimum, float maximum, float step)
+        juce::NormalisableRange<float> steppedRange (float minimum, float maximum, float step)
         {
             const auto perUnit = std::round (1.0f / step);   // 10 for 0.1, 1 for 1
             return { minimum, maximum,
@@ -26,6 +26,8 @@ namespace Parameters
     {
         juce::AudioProcessorValueTreeState::ParameterLayout layout;
         layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { ParamIDs::bypass, 1 }, "Bypass", false));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::volume, 2 }, "Volume", steppedRange (0.0f, 15.0f, 0.1f), 0.0f,
+                                                                 juce::AudioParameterFloatAttributes().withLabel ("dB")));
         return layout;
     }
 }

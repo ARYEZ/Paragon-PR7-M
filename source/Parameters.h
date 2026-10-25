@@ -11,6 +11,8 @@ namespace ParamIDs
 {
     // BYPASS: hear the mix as it came in, at the processed loudness.
     inline constexpr const char* bypass = "panel.bypass";
+    // VOLUME: gain into the true-peak limiter, 0 to +15 dB.
+    inline constexpr const char* volume = "dyn.volume";
 }
 
 namespace Parameters
