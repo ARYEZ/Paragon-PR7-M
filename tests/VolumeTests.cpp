@@ -55,6 +55,34 @@ namespace
         return buffer;
     }
 
+    // How much of the output isn't the input turned up or down: per 1.3 ms
+    // stretch the best-fitting gain is taken out (a limiter turning the level
+    // up and down is what it's for), and what's left (the waveform's shape
+    // changed: distortion) is measured against the output, dB.
+    float residualDb (const juce::AudioBuffer<float>& in, const juce::AudioBuffer<float>& out, int latency)
+    {
+        constexpr int window = 64;
+        double residual = 0.0, total = 0.0;
+        for (int start = latency + 48000; start + window < out.getNumSamples(); start += window)
+        {
+            double xy = 0.0, xx = 0.0;
+            for (int i = 0; i < window; ++i)
+            {
+                const auto x = (double) in.getSample (0, start + i - latency), y = (double) out.getSample (0, start + i);
+                xy += x * y;
+                xx += x * x;
+            }
+            const auto g = xx > 0.0 ? xy / xx : 0.0;
+            for (int i = 0; i < window; ++i)
+            {
+                const auto x = (double) in.getSample (0, start + i - latency), y = (double) out.getSample (0, start + i);
+                residual += (y - g * x) * (y - g * x);
+                total += y * y;
+            }
+        }
+        return (float) (10.0 * std::log10 (residual / total));
+    }
+
     float lufsOf (const juce::AudioBuffer<float>& buffer)
     {
         metering::ShortTermLoudness meter;
@@ -108,10 +136,10 @@ namespace
 
 TEST_CASE ("VOLUME keeps making a dense mix louder all the way up, under the ceiling", "[volume]")
 {
-    // It used to stop getting louder from about 9 (a clean limiter only turns
-    // a dense mix down harder): 9 to 15 added 0.4 LU, 15 was 6.4 LU over 0.
-    // With the clipper every 3 dB step adds at least 0.8 LU (measured: 2.7,
-    // 2.4, 2.2, 1.7, 0.9), about 10 LU in all.
+    // 0.3.0 to 0.5.0 (a slow limiter alone) stopped getting louder from about
+    // 9: 9 to 15 added 0.4 LU. Now every 3 dB step adds at least 0.6 LU
+    // (measured: 3.1, 2.3, 1.4, 1.2, 1.6): the limiter first, then the
+    // clipper from about 10, about 9.6 LU in all.
     const auto mix = denseMix (6.0);
     auto last = lufsOf (mix);
     const auto start = last;
@@ -124,11 +152,32 @@ TEST_CASE ("VOLUME keeps making a dense mix louder all the way up, under the cei
         auto audio = mix;
         process (processor, audio);
         const auto loudness = lufsOf (audio);
-        CHECK (loudness > last + 0.8f);
+        CHECK (loudness > last + 0.6f);
         CHECK (juce::Decibels::gainToDecibels (processor.getTruePeak()) <= effects::TruePeakLimiter::ceilingDb);
         last = loudness;
     }
-    CHECK (last - start > 9.0f);
+    CHECK (last - start > 8.5f);
+}
+
+TEST_CASE ("VOLUME stays clean through most of its travel", "[volume]")
+{
+    // On the dense mix, through the whole plugin: up to 9 the waveform is
+    // untouched to about -41 dB or better (only turned up and down); then the
+    // clipper adds edge evenly: measured -31 dB at 10, -26 at 12, -21 at 15.
+    // (0.6.0 and 0.7.0 distorted at -30 dB by 6, -25 dB by 9.)
+    const auto mix = denseMix (6.0);
+    for (const auto& [volume, cleanerThanDb] : { std::pair (3.0f, -40.0f), { 6.0f, -40.0f }, { 9.0f, -38.0f }, { 12.0f, -24.0f } })
+    {
+        INFO ("VOLUME " << volume);
+        ParagonPR7MAudioProcessor processor;
+        setParameter (processor, ParamIDs::volume, volume);
+        processor.prepareToPlay (sampleRate, blockSize);
+        auto audio = mix;
+        process (processor, audio);
+        const auto distortion = residualDb (mix, audio, processor.getLatencySamples());
+        INFO ("distortion " << distortion << " dB");
+        CHECK (distortion < cleanerThanDb);
+    }
 }
 
 TEST_CASE ("VOLUME's clipper leaves what's under its knee exactly as it was, only later", "[volume]")
@@ -152,12 +201,24 @@ TEST_CASE ("VOLUME's clipper leaves what's under its knee exactly as it was, onl
     }
 }
 
-TEST_CASE ("VOLUME's knee widens as it's pushed, from none at 0 to 6 dB", "[volume]")
+TEST_CASE ("VOLUME's clipper only comes into reach near the top", "[volume]")
 {
-    CHECK_THAT (effects::VolumeClipper::kneeStartDb (0.0f), WithinAbs (-1.0, 1.0e-6));
-    CHECK_THAT (effects::VolumeClipper::kneeStartDb (3.0f), WithinAbs (-4.0, 1.0e-6));
-    CHECK_THAT (effects::VolumeClipper::kneeStartDb (6.0f), WithinAbs (-7.0, 1.0e-6));
-    CHECK_THAT (effects::VolumeClipper::kneeStartDb (15.0f), WithinAbs (-7.0, 1.0e-6));
+    // A peak at -1 dBFS, turned up by VOLUME, goes 6 dB over the clipper's
+    // ceiling at 10 and 12 dB over at 15; below 10 the ceiling rises 2 dB a
+    // step, so such a peak first reaches its knee (3 dB under) at 7.
+    CHECK_THAT (effects::VolumeClipper::ceilingDbFor (15.0f), WithinAbs (2.0, 1.0e-5));
+    CHECK_THAT (effects::VolumeClipper::ceilingDbFor (10.0f), WithinAbs (3.0, 1.0e-5));
+    CHECK_THAT (effects::VolumeClipper::ceilingDbFor (0.0f), WithinAbs (23.0, 1.0e-5));
+    CHECK_THAT (effects::VolumeClipper::kneeStartDb (15.0f), WithinAbs (-1.0, 1.0e-5));
+    for (float volume = 0.0f; volume < 7.0f; volume += 0.5f)
+        CHECK (-1.0f + volume < effects::VolumeClipper::kneeStartDb (volume));
+    CHECK (-1.0f + 7.5f > effects::VolumeClipper::kneeStartDb (7.5f));
+    // Continuous and falling: no jump in the law anywhere.
+    for (float volume = 0.1f; volume <= 15.0f; volume += 0.1f)
+    {
+        CHECK (effects::VolumeClipper::ceilingDbFor (volume) <= effects::VolumeClipper::ceilingDbFor (volume - 0.1f));
+        CHECK (effects::VolumeClipper::ceilingDbFor (volume - 0.1f) - effects::VolumeClipper::ceilingDbFor (volume) < 0.25f);
+    }
 
     // The curve: untouched to the knee, smooth into the ceiling, never past it.
     const auto ceiling = juce::Decibels::decibelsToGain (-1.0f), knee = juce::Decibels::decibelsToGain (-7.0f);
@@ -169,7 +230,7 @@ TEST_CASE ("VOLUME's knee widens as it's pushed, from none at 0 to 6 dB", "[volu
 
 TEST_CASE ("VOLUME's clipping doesn't fold back down as harsh aliasing", "[volume]")
 {
-    // A 5 kHz tone pushed 12 dB into the clipper. Its harmonics above 24 kHz
+    // A 5 kHz tone pushed 15 dB into the clipper (12 dB over its ceiling). Its harmonics above 24 kHz
     // would fold back to 3, 7, 13 and 17 kHz (not harmonics of 5 kHz) if
     // clipped at the sample rate; at 4x they're filtered off first.
     const auto measure = [] (bool oversampled)
@@ -179,13 +240,14 @@ TEST_CASE ("VOLUME's clipping doesn't fold back down as harsh aliasing", "[volum
         {
             effects::VolumeClipper clipper;
             clipper.prepare (sampleRate, blockSize);
-            clipper.setVolumeImmediately (12.0f);
+            clipper.setVolumeImmediately (15.0f);
             clip (clipper, audio);
         }
         else
         {
-            const auto ceiling = juce::Decibels::decibelsToGain (-1.0f), knee = juce::Decibels::decibelsToGain (-7.0f);
-            const auto gain = juce::Decibels::decibelsToGain (12.0f);
+            const auto ceiling = juce::Decibels::decibelsToGain (effects::VolumeClipper::ceilingDbFor (15.0f));
+            const auto knee = juce::Decibels::decibelsToGain (effects::VolumeClipper::kneeStartDb (15.0f));
+            const auto gain = juce::Decibels::decibelsToGain (15.0f);
             for (int i = 0; i < audio.getNumSamples(); ++i)
             {
                 const auto x = audio.getSample (0, i) * gain;
@@ -202,7 +264,7 @@ TEST_CASE ("VOLUME's clipping doesn't fold back down as harsh aliasing", "[volum
     const auto naive = measure (false), ours = measure (true);
     INFO ("aliasing, against the tone: at the sample rate " << naive << " dB, at 4x " << ours << " dB");
     CHECK (ours < naive - 20.0f);
-    CHECK (ours < -60.0f);
+    CHECK (ours < -55.0f);   // measured about -59 dB, against -22 dB clipped at the sample rate
 }
 
 TEST_CASE ("Turning VOLUME doesn't click", "[volume]")

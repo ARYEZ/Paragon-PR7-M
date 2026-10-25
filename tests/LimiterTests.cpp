@@ -311,17 +311,17 @@ TEST_CASE ("Turning VOLUME doesn't click", "[limiter]")
     CHECK (biggestStep < 0.01f);
 }
 
-TEST_CASE ("The processor drives VOLUME's LEDs with the clipper and limiter together", "[processor][limiter]")
+TEST_CASE ("The processor drives VOLUME's LEDs from the limiter, clean below the clipper's reach", "[processor][limiter]")
 {
-    // A tone 5 dB over the ceiling at VOLUME 10: the clipper shaves about
-    // 5 dB off its peaks (the LEDs show it), it comes out louder than a
-    // clean limiter would leave it (squarer), and under the ceiling.
+    // A tone pushed 5 dB over the ceiling at VOLUME 6: far under the
+    // clipper's reach, so the limiter alone turns it down about 5 dB (the
+    // LEDs show it), cleanly, to its target under the ceiling.
     constexpr double sampleRate = 48000.0;
     ParagonPR7MAudioProcessor processor;
-    setParameter (processor, ParamIDs::volume, 10.0f);
+    setParameter (processor, ParamIDs::volume, 6.0f);
     processor.prepareToPlay (sampleRate, blockSize);
 
-    auto audio = sine (sampleRate, 1000.0, -6.0f, 4.0);   // past the 3 s loudness window
+    auto audio = sine (sampleRate, 1000.0, -2.0f, 4.0);   // past the 3 s loudness window
     juce::MidiBuffer midi;
     for (int start = 0; start < audio.getNumSamples(); start += blockSize)
     {
@@ -333,5 +333,5 @@ TEST_CASE ("The processor drives VOLUME's LEDs with the clipper and limiter toge
     CHECK (leds > 4.5f);
     CHECK (leds < 6.5f);
     CHECK (juce::Decibels::gainToDecibels (processor.getTruePeak()) <= effects::TruePeakLimiter::ceilingDb);
-    CHECK (processor.getShortTermLufs() > effects::TruePeakLimiter::targetDb + 0.5f);
+    CHECK_THAT (processor.getShortTermLufs(), WithinAbs (effects::TruePeakLimiter::targetDb, 0.1));
 }

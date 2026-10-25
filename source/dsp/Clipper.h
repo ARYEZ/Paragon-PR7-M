@@ -12,19 +12,28 @@ namespace effects
     // VOLUME's first half: the gain (0 to +15 dB) and a soft clipper, before
     // the true-peak limiter. Our own design.
     //
-    // Why a clipper: a clean limiter can only turn the whole mix down round
-    // each peak, so on a dense mix pushing harder mostly just makes it turn
-    // down harder (measured: VOLUME 9 to 15 added 0.4 LU). A clipper shaves
-    // the peaks off instead and leaves the rest, so the mix keeps getting
-    // louder all the way up the knob (on the same mix, VOLUME 15 is about
-    // 11 LU louder than 0). It's how the loudness of PR7-C's OUTPUT TRIM
-    // pushed past 0 dBFS comes about, here kept under the ceiling; the
-    // limiter after it catches what's left between the samples.
+    // Clean first: through most of VOLUME's travel the limiter does all the
+    // work (its quick, music-following release gets a dense mix about as loud
+    // as limiting can without changing the waveform). Measured on a dense
+    // mix through the plugin: -15.5 LUFS at 0, -8.7 at 9 with the waveform
+    // untouched to -41 dB. Beyond that no design we tried (faster or slower
+    // releases, PR7-C's AUTO, two bands with the lows limited apart) got
+    // louder: the rest can only come from cutting into the waveform. So from
+    // about 10 the clipper starts to, evenly: -8.2 LUFS at 10 (distortion
+    // -31 dB), -7.5 at 12 (-26 dB), -5.9 at 15 (-21 dB, pushed hard on
+    // purpose). Every step adds a little loudness and a little edge.
     //
-    // The curve: straight up to the start of a soft knee, then rounding off
-    // into the ceiling (-1 dBFS). The knee widens with VOLUME, 1 dB per dB up
-    // to 6 dB (from -7 dBFS), so at VOLUME 0 nothing under the ceiling is
-    // touched, and the more it's pushed the rounder (less harsh) it shaves.
+    // (0.6.0 and 0.7.0 had the clipper do the work from the start, into the
+    // limiter's ceiling: louder sooner but distorting badly, -30 dB by
+    // VOLUME 6 and -18 dB at the top. The owner: "the volume is just causing
+    // overload now".)
+    //
+    // The law: a peak at -1 dBFS, turned up by VOLUME, goes 6 dB over the
+    // clipper's ceiling at 10 and 12 dB over at 15 (1.2 dB more a step);
+    // below 10 the ceiling rises 2 dB a step, out of reach (it first touches
+    // such a peak, gently, at about 7, where shaving that little does
+    // nothing you'd hear). A 3 dB soft knee under the ceiling. The limiter
+    // after it takes what's left down under -1 dBTP.
     //
     // It works at 4x the sample rate, and only on what it shaves off: the
     // audio is oversampled, the shaving (clipped minus unclipped) worked out
@@ -36,11 +45,20 @@ namespace effects
     {
     public:
         static constexpr int maxChannels = 2;
-        static constexpr float ceilingDb = -1.0f;
-        static constexpr float maxKneeDb = 6.0f;
+        static constexpr float limiterCeilingDb = -1.0f;
+        static constexpr float kneeDb = 3.0f;
 
-        // Where the rounding starts, for a VOLUME (dB).
-        static float kneeStartDb (float volumeDb) noexcept { return ceilingDb - juce::jlimit (0.0f, maxKneeDb, volumeDb); }
+        // The clipper's ceiling and where its rounding starts, for a VOLUME
+        // (dB), as the law above: +3 dBFS at 10, +2 at 15, +23 at 0.
+        static float ceilingDbFor (float volumeDb) noexcept
+        {
+            const auto v = juce::jlimit (0.0f, 15.0f, volumeDb);
+            // How far a peak at -1 dBFS, turned up by VOLUME, goes over the
+            // clipper's ceiling: 6 dB at 10, 12 dB at 15.
+            const auto peakDb = v + limiterCeilingDb;
+            return v >= 10.0f ? peakDb - (6.0f + 1.2f * (v - 10.0f)) : 3.0f + 2.0f * (10.0f - v);
+        }
+        static float kneeStartDb (float volumeDb) noexcept { return ceilingDbFor (volumeDb) - kneeDb; }
 
         // The curve, for a level (positive, linear) and a knee start (linear).
         static float shape (float level, float kneeStart, float ceiling) noexcept
@@ -99,7 +117,7 @@ namespace effects
             auto shaving = juce::dsp::AudioBlock<float> (shaved).getSubsetChannelBlock (0, numChannels).getSubBlock (0, numSamples);
             shaving.copyFrom (block);
             auto up = oversampling->processSamplesUp (shaving);
-            const auto ceiling = juce::Decibels::decibelsToGain (ceilingDb);
+            const auto ceiling = juce::Decibels::decibelsToGain (ceilingDbFor (volume.getCurrentValue()));
             const auto kneeStart = juce::Decibels::decibelsToGain (kneeStartDb (volume.getCurrentValue()));
             auto mostRatio = 1.0f;
             for (size_t channel = 0; channel < up.getNumChannels(); ++channel)
