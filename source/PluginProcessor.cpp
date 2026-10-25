@@ -18,7 +18,8 @@ ParagonPR7MAudioProcessor::ParagonPR7MAudioProcessor()
 {
     // Until prepareToPlay gives the real sample rate, report the delay at
     // the usual 48 kHz, for hosts that ask before then.
-    setLatencySamples (effects::TruePeakLimiter::latencyFor (48000.0));
+    clipper.prepare (48000.0, 512);
+    setLatencySamples (clipper.getLatency() + effects::TruePeakLimiter::latencyFor (48000.0));
 }
 
 bool ParagonPR7MAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -40,12 +41,14 @@ void ParagonPR7MAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     transientShaper.setAmountImmediately (transients->load());
     compressor.prepare (sampleRate);
     compressor.setPushImmediately (push->load());
-    limiter.prepare (sampleRate);
-    limiter.setVolumeImmediately (volume->load());
-    setLatencySamples (limiter.getLatency());
+    clipper.prepare (sampleRate, samplesPerBlock);
+    clipper.setVolumeImmediately (volume->load());
+    limiter.prepare (sampleRate);   // its own gain stays at 0 dB: VOLUME's gain is the clipper's
+    const auto latency = clipper.getLatency() + limiter.getLatency();
+    setLatencySamples (latency);
 
     dry.setSize (metering::maxChannels, juce::jmax (1, samplesPerBlock));
-    dryDelay.prepare (limiter.getLatency());
+    dryDelay.prepare (latency);
     matchedBypass.prepare (sampleRate);
     matchedBypass.setImmediately (bypass->load() >= 0.5f);
     loudness.prepare (sampleRate);
@@ -107,8 +110,11 @@ void ParagonPR7MAudioProcessor::processChunk (juce::dsp::AudioBlock<float> block
     compressor.setPush (push->load());
     pushReduction.push (compressor.process (block));
 
-    limiter.setVolume (volume->load());
-    volumeReduction.push (limiter.process (block));
+    // VOLUME: the gain and the clipper, then the limiter. Its LEDs show
+    // both: what the clipper shaves off and what the limiter turns down.
+    clipper.setVolume (volume->load());
+    const auto shaved = clipper.process (block);
+    volumeReduction.push (shaved + limiter.process (block));
 
     matchedBypass.process (dryBlock, block, bypass->load() >= 0.5f);
 

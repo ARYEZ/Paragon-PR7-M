@@ -104,8 +104,9 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
                      "The green LEDs show how much it's turning down (1 dB each)."),
             ParamIDs::push);
     attach (addKnob ("dyn.volume", P (978, 346), 74, numbers (0, 15, 1.5f, false), "VOLUME",
-                     "VOLUME: louder, without clipping or harshness. Turns the mix up (0 to +15 dB) into a limiter "
-                     "that keeps every peak under -1 dBTP. The green LEDs show how much it's turning down (1 dB each)."),
+                     "VOLUME: louder, all the way up. Turns the mix up (0 to +15 dB) into a soft clipper that rounds "
+                     "the peaks off, then a limiter that keeps every peak under -1 dBTP. The green LEDs show how much "
+                     "it's taking off the peaks (1 dB each)."),
             ParamIDs::volume);
     auto& reset = addLever ("panel.reset", P (480, 158), "RESET", "RESET: flick it up to set every knob back to its starting point");
     reset.onChange = [this, &reset]

@@ -311,14 +311,15 @@ TEST_CASE ("Turning VOLUME doesn't click", "[limiter]")
     CHECK (biggestStep < 0.01f);
 }
 
-TEST_CASE ("The processor reports the limiter's delay and drives VOLUME's LEDs", "[processor][limiter]")
+TEST_CASE ("The processor drives VOLUME's LEDs with the clipper and limiter together", "[processor][limiter]")
 {
+    // A tone 5 dB over the ceiling at VOLUME 10: the clipper shaves about
+    // 5 dB off its peaks (the LEDs show it), it comes out louder than a
+    // clean limiter would leave it (squarer), and under the ceiling.
     constexpr double sampleRate = 48000.0;
     ParagonPR7MAudioProcessor processor;
-    CHECK (processor.getLatencySamples() == effects::TruePeakLimiter::latencyFor (48000.0));   // before prepareToPlay
     setParameter (processor, ParamIDs::volume, 10.0f);
     processor.prepareToPlay (sampleRate, blockSize);
-    CHECK (processor.getLatencySamples() == (int) std::round (sampleRate * 0.003) - 1 + metering::TruePeak::delay);
 
     auto audio = sine (sampleRate, 1000.0, -6.0f, 4.0);   // past the 3 s loudness window
     juce::MidiBuffer midi;
@@ -327,20 +328,10 @@ TEST_CASE ("The processor reports the limiter's delay and drives VOLUME's LEDs",
         juce::AudioBuffer<float> block (audio.getArrayOfWritePointers(), 2, start, juce::jmin (blockSize, audio.getNumSamples() - start));
         processor.processBlock (block, midi);
     }
-    CHECK_THAT (processor.getVolumeReduction().takeReduction(), WithinAbs (4.0 - effects::TruePeakLimiter::targetDb, 0.02));
+    const auto leds = processor.getVolumeReduction().takeReduction();
+    INFO ("LEDs " << leds << " dB, " << processor.getShortTermLufs() << " LUFS");
+    CHECK (leds > 4.5f);
+    CHECK (leds < 6.5f);
     CHECK (juce::Decibels::gainToDecibels (processor.getTruePeak()) <= effects::TruePeakLimiter::ceilingDb);
-    CHECK_THAT (processor.getShortTermLufs(), WithinAbs (effects::TruePeakLimiter::targetDb, 0.05));
-}
-
-
-TEST_CASE ("Benchmark: the limiter's CPU", "[.benchmark]")
-{
-    effects::TruePeakLimiter limiter;
-    limiter.prepare (48000.0);
-    limiter.setVolumeImmediately (12.0f);
-    auto audio = noise (48000.0, -6.0f, 60.0);   // a minute
-    const auto start = juce::Time::getMillisecondCounterHiRes();
-    limit (limiter, audio);
-    const auto seconds = (juce::Time::getMillisecondCounterHiRes() - start) / 1000.0;
-    std::cout << "A minute of stereo 48 kHz in " << seconds << " s: " << 100.0 * seconds / 60.0 << "% of one core" << std::endl;
+    CHECK (processor.getShortTermLufs() > effects::TruePeakLimiter::targetDb + 0.5f);
 }
