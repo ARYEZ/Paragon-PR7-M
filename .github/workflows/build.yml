@@ -1,0 +1,158 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PLUGINVAL_VERSION: v1.0.4
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-24.04
+            pluginval_zip: pluginval_Linux.zip
+            pluginval_bin: ./pluginval
+          - name: macOS
+            os: macos-15
+            pluginval_zip: pluginval_macOS.zip
+            pluginval_bin: ./pluginval.app/Contents/MacOS/pluginval
+          - name: Windows
+            os: windows-2022
+            pluginval_zip: pluginval_Windows.zip
+            pluginval_bin: ./pluginval.exe
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build xvfb \
+            libasound2-dev libjack-jackd2-dev ladspa-sdk \
+            libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev \
+            libxrandr-dev libxrender-dev libxi-dev \
+            libegl-dev libglu1-mesa-dev mesa-common-dev
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then GENERATOR="-G Ninja"; fi
+          cmake -B build $GENERATOR -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Validate with pluginval
+        shell: bash
+        run: |
+          curl -sSL -o pluginval.zip \
+            "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/${{ matrix.pluginval_zip }}"
+          unzip -q pluginval.zip
+          PLUGIN="build/ParagonPR7M_artefacts/Release/VST3/Paragon PR7-M.vst3"
+          RUN="${{ matrix.pluginval_bin }} --strictness-level 10 --validate-in-process --validate"
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a $RUN "$PLUGIN"
+          else
+            $RUN "$PLUGIN"
+          fi
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v7
+        with:
+          name: ParagonPR7M-VST3-${{ matrix.name }}
+          path: build/ParagonPR7M_artefacts/Release/VST3
+
+  # Publishes a GitHub Release whenever a push carries a version number
+  # (in CMakeLists.txt) that hasn't been released yet: bump the version and
+  # add a CHANGELOG.md section, push, and the release appears. Pushing a
+  # matching vX.Y.Z tag works too. The release holds the three builds
+  # above, zipped, with notes from CHANGELOG.md.
+  release:
+    name: Release
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # needed to create the tag and release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Is this version already released?
+        id: version
+        run: |
+          VERSION=$(sed -n 's/^project(ParagonPR7M VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          TAG="v${VERSION}"
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "$TAG" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} doesn't match the VERSION in CMakeLists.txt (${VERSION})" >&2
+            exit 1
+          fi
+          if [[ "$VERSION" == "0.0.0" ]]; then
+            echo "Version 0.0.0 is the unreleased seed; nothing to publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          elif gh release view "$TAG" > /dev/null 2>&1; then
+            echo "${TAG} is already released; nothing to do."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        if: steps.version.outputs.publish == 'true'
+        with:
+          path: artifacts
+
+      - name: Zip each platform's plugin
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          mkdir release
+          # Artifact storage drops file permissions; put the executable flag
+          # back on the macOS and Linux binaries so every host will load them.
+          chmod -R a+x "artifacts/ParagonPR7M-VST3-macOS/Paragon PR7-M.vst3/Contents/MacOS" \
+                       "artifacts/ParagonPR7M-VST3-Linux/Paragon PR7-M.vst3/Contents/x86_64-linux"
+          for os in Windows macOS Linux; do
+            (cd "artifacts/ParagonPR7M-VST3-${os}" && zip -qr "../../release/ParagonPR7-M-${TAG}-${os}-VST3.zip" "Paragon PR7-M.vst3")
+          done
+          ls -l release
+
+      - name: Write the release notes
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          # This version's section of CHANGELOG.md: from its heading to the next one.
+          awk -v version="${{ steps.version.outputs.version }}" '
+            /^## / { printing = ($2 == version) ; next }
+            printing { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "CHANGELOG.md has no section for ${{ steps.version.outputs.version }}" >&2
+            exit 1
+          fi
+          cat .github/release-install.md >> notes.md
+
+      - name: Publish the release
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          # --target creates the tag on this exact commit if it doesn't exist yet.
+          gh release create "$TAG" release/*.zip \
+            --target "$GITHUB_SHA" \
+            --title "Paragon PR7-M ${TAG}" \
+            --notes-file notes.md
