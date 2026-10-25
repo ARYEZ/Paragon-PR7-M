@@ -156,6 +156,16 @@ void PresetManager::load (const Preset& preset)
     setCurrent (preset.name, values);
 }
 
+void PresetManager::loadValues (const juce::String& name, const std::map<juce::String, float>& given)
+{
+    auto values = valuesOf ({ name, true, -1, {} });   // every knob at its default
+    for (const auto& [id, value] : given)
+        if (values.count (id) != 0)
+            values[id] = value;
+    apply (values);
+    setCurrent (name, values);
+}
+
 void PresetManager::loadFactory (int index)
 {
     if (juce::isPositiveAndBelow (index, getNumFactoryPresets()))

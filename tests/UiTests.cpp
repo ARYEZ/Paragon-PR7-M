@@ -59,7 +59,7 @@ TEST_CASE ("The panel has every control of the agreed layout, on the faceplate",
     CHECK (MainView::faceplate().contains (view.getVuMeter().getBounds().toFloat()));
 
     // The header: the presets and the settings, above the faceplate.
-    for (const auto* id : { "preset.previous", "preset.next", "preset.save", "preset.menu", "settings" })
+    for (const auto* id : { "preset.previous", "preset.next", "assistant.listen", "preset.save", "preset.menu", "settings" })
     {
         INFO (id);
         auto* control = view.findControl (id);

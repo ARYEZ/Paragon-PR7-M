@@ -20,9 +20,8 @@ ParagonPR7MAudioProcessor::ParagonPR7MAudioProcessor()
 {
     // Until prepareToPlay gives the real sample rate, report the delay at
     // the usual 48 kHz, for hosts that ask before then.
-    analogColour.prepare (48000.0, 512);
-    clipper.prepare (48000.0, 512);
-    setLatencySamples (analogColour.getLatency() + clipper.getLatency() + effects::TruePeakLimiter::latencyFor (48000.0));
+    chain.prepare (48000.0, 512, knobs());
+    setLatencySamples (chain.getLatency());
     presets.stateRestored();   // "Default", unmodified
 }
 
@@ -37,22 +36,11 @@ bool ParagonPR7MAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 
 void ParagonPR7MAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    tone.prepare (sampleRate);
-    tone.setImmediately (air->load(), focus->load(), body->load());
-    punch.prepare (sampleRate);
-    punch.setPunchImmediately (bassPunch->load());
-    transientShaper.prepare (sampleRate);
-    transientShaper.setAmountImmediately (transients->load());
-    compressor.prepare (sampleRate);
-    compressor.setPushImmediately (push->load());
-    analogColour.prepare (sampleRate, samplesPerBlock);
-    analogColour.setAmountImmediately (analog->load());
-    stereoWidth.prepare (sampleRate);
-    stereoWidth.setWidthImmediately (width->load());
-    clipper.prepare (sampleRate, samplesPerBlock);
-    clipper.setVolumeImmediately (volume->load());
-    limiter.prepare (sampleRate);   // its own gain stays at 0 dB: VOLUME's gain is the clipper's
-    const auto latency = analogColour.getLatency() + clipper.getLatency() + limiter.getLatency();
+    chain.prepare (sampleRate, samplesPerBlock, knobs());
+    // Listening at another sample rate would mix two recordings up.
+    if (assistant.getState() == Assistant::State::listening && ! juce::approximatelyEqual (assistant.getSampleRate(), sampleRate))
+        assistant.cancel();
+    const auto latency = chain.getLatency();
     setLatencySamples (latency);
 
     dry.setSize (metering::maxChannels, juce::jmax (1, samplesPerBlock));
@@ -85,6 +73,7 @@ void ParagonPR7MAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         }
 
     pushMeters (inputMeters, buffer, numSamples);
+    assistant.capture (buffer.getArrayOfReadPointers(), juce::jmin (getTotalNumInputChannels(), buffer.getNumChannels()), numSamples);
 
     // In pieces no longer than prepareToPlay said, in case a host sends more.
     const auto block = juce::dsp::AudioBlock<float> (buffer).getSubsetChannelBlock (0, (size_t) juce::jmin (buffer.getNumChannels(), metering::maxChannels));
@@ -103,31 +92,10 @@ void ParagonPR7MAudioProcessor::processChunk (juce::dsp::AudioBlock<float> block
     dryDelay.process (dryBlock);
 
     // The modules, in their order (see CLAUDE.md).
-    tone.setAir (air->load());
-    tone.setFocus (focus->load());
-    tone.setBody (body->load());
-    tone.process (block);
-
-    punch.setPunch (bassPunch->load());
-    punch.process (block);
-
-    transientShaper.setAmount (transients->load());
-    transientShaper.process (block);
-
-    compressor.setPush (push->load());
-    pushReduction.push (compressor.process (block));
-
-    analogColour.setAmount (analog->load());
-    analogColour.process (block);
-
-    stereoWidth.setWidth (width->load());
-    stereoWidth.process (block);
-
-    // VOLUME: the gain and the clipper, then the limiter. Its LEDs show
-    // both: what the clipper shaves off and what the limiter turns down.
-    clipper.setVolume (volume->load());
-    const auto shaved = clipper.process (block);
-    volumeReduction.push (shaved + limiter.process (block));
+    chain.set (knobs());
+    const auto reduction = chain.process (block);
+    pushReduction.push (reduction.push);
+    volumeReduction.push (reduction.volume);
 
     matchedBypass.process (dryBlock, block, bypass->load() >= 0.5f);
 
@@ -144,6 +112,26 @@ void ParagonPR7MAudioProcessor::processChunk (juce::dsp::AudioBlock<float> block
         shortTermLufs.store (loudness.getLufs(), std::memory_order_relaxed);
     vuLevel.store (needle, std::memory_order_relaxed);
     truePeakHold.push (peak);
+}
+
+effects::MasteringChain::Settings ParagonPR7MAudioProcessor::knobs() const noexcept
+{
+    return { air->load(), focus->load(), body->load(), bassPunch->load(), transients->load(),
+             push->load(), analog->load(), width->load(), volume->load() };
+}
+
+std::optional<Assistant::Result> ParagonPR7MAudioProcessor::applyAssistant()
+{
+    assistant.update();
+    auto decided = assistant.takeResult();
+    if (! decided)
+        return decided;
+    const auto& s = decided->settings;
+    presets.loadValues (juce::String ("Assistant - ") + Assistant::targets[decided->target].name,
+                        { { ParamIDs::air, s.air }, { ParamIDs::focus, s.focus }, { ParamIDs::body, s.body },
+                          { ParamIDs::bassPunch, s.bassPunch }, { ParamIDs::transients, s.transients }, { ParamIDs::push, s.push },
+                          { ParamIDs::analog, s.analog }, { ParamIDs::width, s.width }, { ParamIDs::volume, s.volume } });
+    return decided;
 }
 
 int ParagonPR7MAudioProcessor::getVuReference() const

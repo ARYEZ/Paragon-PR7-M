@@ -155,6 +155,10 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
         findControl (id)->getProperties().set (ParagonLookAndFeel::bareProperty, true);
     dynamic_cast<juce::Button*> (findControl ("preset.previous"))->onClick = [this] { processor.getPresets().step (-1); };
     dynamic_cast<juce::Button*> (findControl ("preset.next"))->onClick = [this] { processor.getPresets().step (1); };
+    addHeaderButton ("assistant.listen", "LISTEN", { 1052, 22, 128, 36 },
+                     "The assistant: pick a loudness, then play the loudest part of your song for 15 seconds. "
+                     "It listens and sets every knob for you (you can change anything afterwards).")
+        .onClick = [this] { showListenMenu(); };
     addHeaderButton ("preset.save", "SAVE", { 1203, 22, 96, 36 }, "Save the knobs' settings as your own preset").onClick = [this] { askToSavePreset(); };
     auto& presetMenu = addHeaderButton ("preset.menu", {}, { 1314, 22, 56, 36 },
                                         "More preset options: back to the defaults, delete one of your presets, find the presets folder");
@@ -264,6 +268,7 @@ void MainView::showSettingsMenu()
 void MainView::timerCallback()
 {
     updateMeters();
+    updateAssistant();
     // The preset's name follows loads, saves and changes made since.
     if (const auto text = presetDisplayText(); text != shownPreset)
     {
@@ -272,8 +277,61 @@ void MainView::timerCallback()
     }
 }
 
+void MainView::showListenMenu()
+{
+    auto& assistant = processor.getAssistant();
+    juce::PopupMenu menu;
+    if (assistant.getState() == Assistant::State::listening)
+        menu.addItem (100, "Stop listening");
+    else if (assistant.getState() == Assistant::State::idle || assistant.getState() == Assistant::State::done)
+    {
+        menu.addSectionHeader ("Aim for");
+        for (int i = 0; i < Assistant::numTargets; ++i)
+            menu.addItem (i + 1, juce::String (Assistant::targets[i].name) + " (" + juce::String ((int) Assistant::targets[i].lufs) + " LUFS)");
+    }
+    else
+        return;   // thinking: a moment
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (findControl ("assistant.listen")), [this] (int chosen)
+    {
+        if (chosen == 100)
+            processor.getAssistant().cancel();
+        else if (juce::isPositiveAndNotGreaterThan (chosen, Assistant::numTargets))
+            processor.startListening (chosen - 1);
+        updateAssistant();
+    });
+}
+
+void MainView::updateAssistant()
+{
+    if (const auto decided = processor.applyAssistant())
+    {
+        const auto& aim = Assistant::targets[decided->target];
+        assistantMessage = decided->reachedLufs < aim.lufs - 0.5f
+                               ? "Done: " + juce::String (decided->reachedLufs, 1) + " LUFS, as loud as it goes cleanly"
+                               : "Done: about " + juce::String (decided->reachedLufs, 1) + " LUFS";
+        assistantMessageUntil = juce::Time::getMillisecondCounter() + 5000;
+    }
+    const auto state = processor.getAssistant().getState();
+    if (auto* listen = dynamic_cast<juce::Button*> (findControl ("assistant.listen")))
+        listen->setToggleState (state == Assistant::State::listening || state == Assistant::State::thinking, juce::dontSendNotification);
+}
+
 juce::String MainView::presetDisplayText() const
 {
+    // While the assistant works, it says what it's doing here.
+    const auto& assistant = processor.getAssistant();
+    if (assistant.getState() == Assistant::State::listening)
+    {
+        const auto heard = assistant.getSecondsHeard();
+        if (heard <= 0.0)
+            return "Listening: play the loudest part";
+        return "Listening... " + juce::String ((int) std::ceil (Assistant::listenSeconds - heard)) + " s";
+    }
+    if (assistant.getState() == Assistant::State::thinking || assistant.getState() == Assistant::State::done)
+        return "Thinking...";
+    if (assistantMessage.isNotEmpty() && juce::Time::getMillisecondCounter() < assistantMessageUntil)
+        return assistantMessage;
+
     auto& presets = processor.getPresets();
     const auto name = presets.getCurrentName();
     if (name.isEmpty())

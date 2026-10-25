@@ -2,22 +2,16 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Assistant.h"
 #include "LevelMeterSource.h"
 #include "Parameters.h"
 #include "PresetManager.h"
-#include "dsp/Analog.h"
-#include "dsp/BassPunch.h"
-#include "dsp/Clipper.h"
+#include "dsp/Chain.h"
 #include "dsp/EffectUtils.h"
-#include "dsp/GlueCompressor.h"
-#include "dsp/Limiter.h"
 #include "dsp/Loudness.h"
 #include "dsp/MatchedBypass.h"
-#include "dsp/ToneShaper.h"
-#include "dsp/TransientShaper.h"
 #include "dsp/TruePeak.h"
 #include "dsp/VuBallistics.h"
-#include "dsp/Width.h"
 
 // The mastering processor. True stereo (stereo in, stereo out), or mono in,
 // mono out. The modules, in their order (see CLAUDE.md): BODY / FOCUS /
@@ -91,6 +85,16 @@ public:
     // Factory and user presets (the header). Message thread only.
     PresetManager& getPresets() noexcept { return presets; }
 
+    // The assistant (LISTEN). Message thread, but for what processBlock
+    // hands it.
+    Assistant& getAssistant() noexcept { return assistant; }
+    // LISTEN, for a target (an index into Assistant::targets), at the
+    // current sample rate.
+    void startListening (int target) { assistant.start (target, getSampleRate()); }
+    // Once the assistant has decided: sets the knobs, named for it
+    // ("Assistant - Streaming"). Returns what it decided, if it had.
+    std::optional<Assistant::Result> applyAssistant();
+
     // RESET: every knob back to its starting point (the Default preset), as
     // host gestures (so a host that records them can undo it). BYPASS isn't
     // a knob and stays as it is. Message thread only.
@@ -98,10 +102,12 @@ public:
 
 private:
     void processChunk (juce::dsp::AudioBlock<float>) noexcept;
+    effects::MasteringChain::Settings knobs() const noexcept;
     void pushMeters (std::array<LevelMeterSource, 2>&, const juce::AudioBuffer<float>&, int numSamples) noexcept;
 
     juce::AudioProcessorValueTreeState parameters;
     PresetManager presets { parameters };
+    Assistant assistant;
     std::atomic<float>* bypass = nullptr;
     std::atomic<float>* volume = nullptr;
     std::atomic<float>* push = nullptr;
@@ -114,14 +120,7 @@ private:
     std::atomic<float>* width = nullptr;
     std::array<LevelMeterSource, 2> inputMeters, outputMeters;
 
-    effects::ToneShaper tone;
-    effects::BassPunch punch;
-    effects::TransientShaper transientShaper;
-    effects::GlueCompressor compressor;
-    effects::AnalogColour analogColour;
-    effects::StereoWidth stereoWidth;
-    effects::VolumeClipper clipper;
-    effects::TruePeakLimiter limiter;
+    effects::MasteringChain chain;
     GainReductionSource pushReduction, volumeReduction;
 
     // The mix as it came in, for BYPASS, delayed as much as the modules

@@ -11,7 +11,7 @@
 // twice that for a 2x render). PARAGON_SNAPSHOT_FINISH=black or =neon picks
 // the finish. PARAGON_SNAPSHOT_DEMO=1 loads the "Pop - Polished" preset and
 // sets the VU needle, the loudness readout and PUSH and VOLUME's LEDs, to
-// show them.
+// show them. PARAGON_SNAPSHOT_LISTENING=1 shows the assistant listening.
 TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
 {
     const auto path = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT", "editor.png");
@@ -49,6 +49,22 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
             for (const auto& preset : presets)
                 if (preset.name == "Pop - Polished")
                     processor.getPresets().load (preset);
+        }
+
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_LISTENING", {}) == "1")
+        if (auto* view = dynamic_cast<MainView*> (editor->getChildComponent (0)))
+        {
+            processor.startListening (1);
+            juce::AudioBuffer<float> song (2, 48000 * 4);
+            for (int i = 0; i < song.getNumSamples(); ++i)
+                for (int channel = 0; channel < 2; ++channel)
+                    song.setSample (channel, i, 0.3f * std::sin ((float) i * 0.05f));
+            for (int start = 0; start < song.getNumSamples(); start += 256)
+            {
+                juce::AudioBuffer<float> block (song.getArrayOfWritePointers(), 2, start, 256);
+                processor.processBlock (block, midi);
+            }
+            view->updateAssistant();
         }
 
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());

@@ -27,7 +27,9 @@
 // every knob to its starting point.
 //
 // The header runs the presets, as PR7-C's does: the name (click it for the
-// list), the arrows either side of it, SAVE and the "..." menu.
+// list), the arrows either side of it, SAVE and the "..." menu. LISTEN runs
+// the assistant: pick a loudness, play the loudest part, and it sets the
+// knobs; the preset display tells you what it's doing.
 class MainView final : public juce::Component,
                        private juce::ChangeListener,
                        private juce::Timer
@@ -55,6 +57,10 @@ public:
     // (60 times a second, from the timer).
     void updateMeters();
 
+    // Follows the assistant: lights LISTEN while it works, and sets the
+    // knobs once it has decided (from the timer; tests call it directly).
+    void updateAssistant();
+
     // How many dB PUSH and VOLUME are turning down, for their LED rings.
     void setGainReduction (float pushDb, float volumeDb);
 
@@ -70,6 +76,9 @@ private:
     void showPresetMenu();
     void askToSavePreset();
     void savePreset (const juce::String& name);
+    void showListenMenu();
+    juce::String assistantMessage;   // shown in the preset display for a few seconds after it decides
+    juce::uint32 assistantMessageUntil = 0;
     const juce::Rectangle<float> presetDisplay { 513.0f, 18.0f, 422.0f, 44.0f };
     juce::String shownPreset;
     std::unique_ptr<juce::AlertWindow> saveDialog;

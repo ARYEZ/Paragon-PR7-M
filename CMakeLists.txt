@@ -48,6 +48,7 @@ target_sources(ParagonPR7M
         source/Parameters.cpp
         source/PluginProcessor.cpp
         source/PresetManager.cpp
+        source/Assistant.cpp
         source/PluginEditor.cpp
         source/ui/MainView.cpp
         source/ui/VuMeter.cpp

@@ -48,6 +48,11 @@ public:
     // ◀ ▶: the previous or next preset in the list, wrapping round.
     void step (int direction);
 
+    // Sets the knobs to `values` (ID -> value in the knob's own units; any
+    // knob not listed goes to its default), named `name`, as if a preset
+    // of that name had been loaded (the assistant's settings).
+    void loadValues (const juce::String& name, const std::map<juce::String, float>& values);
+
     // SAVE: the current settings as a user preset (replacing one of the same name).
     bool save (const juce::String& name);
     bool remove (const Preset&);
