@@ -2,6 +2,19 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.7.0
+
+**Every knob works: ANALOG and WIDTH.** The whole chain is in place. Presets come next.
+
+- **ANALOG** (0–10): warmth and colour from harmonics, mostly the warm 2nd with a little edge from the 3rd (PR7-C's saturation curves, made gentler for a whole mix).
+  - It fades in from nothing as you turn it up: a subtle warmth around 5, a clearly audible colour at 10, like tape pushed hard.
+  - It changes the colour, not the loudness. Quiet parts get much less colour than loud ones.
+  - At 0 your mix comes through exactly as it was. It works at 4× the sample rate, so it stays clean (no harsh digital grit).
+- **WIDTH** (−5 to +5): narrower or wider stereo. −5 is mono, +5 is twice as wide.
+  - It only changes the difference between left and right, so your mix sounds the same in mono at any setting.
+  - The bass below 120 Hz always stays in the middle: widening never spreads the low end.
+- **A little more delay:** ANALOG adds 1.3 ms to stay clean, about 5.9 ms in all. PR7-M tells BeatMaker, so your track stays in time.
+
 ## 0.6.0
 
 **VOLUME gets loud, and BASS PUNCH and TRANSIENTS work.** ANALOG and WIDTH come next.
