@@ -28,6 +28,7 @@ namespace Parameters
         layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { ParamIDs::bypass, 1 }, "Bypass", false));
         layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::volume, 2 }, "Volume", steppedRange (0.0f, 15.0f, 0.1f), 0.0f,
                                                                  juce::AudioParameterFloatAttributes().withLabel ("dB")));
+        layout.add (std::make_unique<juce::AudioParameterFloat> (juce::ParameterID { ParamIDs::push, 3 }, "Push", steppedRange (0.0f, 15.0f, 0.1f), 0.0f));
         return layout;
     }
 }

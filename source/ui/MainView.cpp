@@ -98,8 +98,14 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
              later ("BODY: how much low end, without upsetting the overall balance", 4));
 
     // The middle: PUSH, the VU meter, VOLUME; RESET and BYPASS above; WIDTH below.
-    addKnob ("dyn.push", P (470, 346), 74, numbers (0, 15, 1.5f, false), "PUSH",
-             later ("PUSH: the compressor, from gentle to hard, on one knob", 3));
+    auto& push = addKnob ("dyn.push", P (470, 346), 74, numbers (0, 15, 1.5f, false), "PUSH",
+                          "PUSH: the compressor, gentle to hard on one knob. It holds the mix together and makes it denser. "
+                          "The green LEDs show how much it's turning down (1 dB each).");
+    if (auto* parameter = processor.getParameters().getParameter (ParamIDs::push))
+    {
+        attachments.push_back (std::make_unique<juce::SliderParameterAttachment> (*parameter, push.slider));
+        push.slider.setDoubleClickReturnValue (true, 0.0);
+    }
     auto& volume = addKnob ("dyn.volume", P (978, 346), 74, numbers (0, 15, 1.5f, false), "VOLUME",
                             "VOLUME: louder, without clipping or harshness. Turns the mix up (0 to +15 dB) into a limiter "
                             "that keeps every peak under -1 dBTP. The green LEDs show how much it's turning down (1 dB each).");
@@ -252,10 +258,11 @@ void MainView::updateMeters()
 
     loudness.setReadings (processor.getShortTermLufs(), juce::Decibels::gainToDecibels (processor.getTruePeak(), -100.0f));
 
-    // VOLUME's LEDs: the most it turned down since the last look, falling
-    // back gently so short bursts stay visible.
+    // PUSH and VOLUME's LEDs: the most each turned down since the last
+    // look, falling back gently so short bursts stay visible.
+    shownPushReduction = juce::jmax (processor.getPushReduction().takeReduction(), shownPushReduction - 0.5f);
     shownVolumeReduction = juce::jmax (processor.getVolumeReduction().takeReduction(), shownVolumeReduction - 0.5f);
-    setGainReduction (pushReduction, shownVolumeReduction);
+    setGainReduction (shownPushReduction, shownVolumeReduction);
 }
 
 void MainView::paintReductionRing (juce::Graphics& g, const Knob& knob, float reductionDb) const

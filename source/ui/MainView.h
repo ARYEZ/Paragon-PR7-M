@@ -72,7 +72,7 @@ private:
     LoudnessDisplay loudness;
     std::unique_ptr<juce::ParameterAttachment> bypassAttachment;
     std::vector<std::unique_ptr<juce::SliderParameterAttachment>> attachments;
-    float shownVolumeReduction = 0.0f;
+    float shownPushReduction = 0.0f, shownVolumeReduction = 0.0f;
     float shownVuLevel = 0.0f;
     juce::uint32 lastMeteredBlocks = 0;
     int ticksWithoutAudio = 0;

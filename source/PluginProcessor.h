@@ -5,6 +5,7 @@
 #include "LevelMeterSource.h"
 #include "Parameters.h"
 #include "dsp/EffectUtils.h"
+#include "dsp/GlueCompressor.h"
 #include "dsp/Limiter.h"
 #include "dsp/Loudness.h"
 #include "dsp/MatchedBypass.h"
@@ -13,8 +14,9 @@
 
 // The mastering processor. True stereo (stereo in, stereo out), or mono in,
 // mono out. The modules are built one at a time (see CLAUDE.md); so far
-// VOLUME, the true-peak limiter at the end of the chain, which delays the
-// audio by a few milliseconds (reported to the host). BYPASS is at matched
+// PUSH (the glue compressor) and VOLUME (the true-peak limiter at the end of
+// the chain, which delays the audio by a few milliseconds, reported to the
+// host). BYPASS is at matched
 // loudness, and the output is metered: the VU needle, short-term loudness
 // and true peak.
 class ParagonPR7MAudioProcessor final : public juce::AudioProcessor
@@ -63,7 +65,9 @@ public:
     float getTruePeak() const noexcept { return truePeakHold.get(); }
     void resetTruePeak() noexcept { truePeakHold.reset(); }
 
-    // How much VOLUME's limiter is turning down (dB), for its LED ring.
+    // How much PUSH's compressor and VOLUME's limiter are turning down (dB),
+    // for their LED rings.
+    GainReductionSource& getPushReduction() noexcept { return pushReduction; }
     GainReductionSource& getVolumeReduction() noexcept { return volumeReduction; }
     // Counts the blocks metered, so the UI can tell when the host has
     // stopped sending audio (and let the needle fall).
@@ -88,10 +92,12 @@ private:
     juce::AudioProcessorValueTreeState parameters;
     std::atomic<float>* bypass = nullptr;
     std::atomic<float>* volume = nullptr;
+    std::atomic<float>* push = nullptr;
     std::array<LevelMeterSource, 2> inputMeters, outputMeters;
 
+    effects::GlueCompressor compressor;
     effects::TruePeakLimiter limiter;
-    GainReductionSource volumeReduction;
+    GainReductionSource pushReduction, volumeReduction;
 
     // The mix as it came in, for BYPASS, delayed as much as the modules
     // delay the processed mix, so the two stay aligned.

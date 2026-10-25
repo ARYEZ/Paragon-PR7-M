@@ -18,9 +18,10 @@ PR7-C runs on many tracks, so it adds no delay and stays light. Mastering runs o
 ## What's here
 
 - **The plugin:** true stereo (stereo in/out, or mono in/out). Identity: `Paragon PR7-M`, plugin code `Pr7m`, bundle `com.paragon.paragonpr7m`, maker code `Prgn`, VST3 category Fx / Mastering.
-  - Parameters so far: `panel.bypass` (version hint 1), `dyn.volume` (2; 0 to 15 dB in 0.1 steps, default 0). Each step adds its own. Input and output peak sources (`LevelMeterSource`) are kept (no meter uses them on the panel now).
-  - **Signal path in `processChunk`:** the input is copied to `dry` and delayed by the chain's latency (`effects::FixedDelay`), the modules run in place (so far VOLUME's limiter), then `effects::MatchedBypass` (`dsp/MatchedBypass.h`) mixes, then the **output** is metered (what's heard). Hosts sending bigger blocks than `prepareToPlay` said are split into chunks. A module that adds latency must add it to `setLatencySamples` and to `dryDelay`.
-  - **VOLUME (`dsp/Limiter.h`, `effects::TruePeakLimiter`):** gain (0 to +15 dB, smoothed 50 ms) into a look-ahead true-peak limiter, ceiling **−1 dBTP** (aims at −1.06 for what detection misses), always on (a mix peaking over −1 dBTP is caught at VOLUME 0). Detection is `TruePeak::next` at **8×** (the meter stays 4×, the standard's); a hold over the 3 ms look-ahead + 1 sample, a 100 ms release, then a 3 ms moving average, applied to audio delayed by `lookAhead − 1 + TruePeak::delay` (16) samples: 159 at 48 kHz, fixed whatever VOLUME is, reported from the constructor (48 kHz guess) and in `prepareToPlay`. Stereo linked. Gain is exactly 1 with nothing to limit, so audio under the ceiling comes out bit for bit, only later. Measured with a 16× reference: music-like material (content to 20 kHz) stays under −1.0 dBTP; full-band white noise to Nyquist slips ~1 dB past (a known limit; a 4× meter still reads it under). Under 1% of a core. Its gain reduction drives VOLUME's LEDs (`getVolumeReduction`).
+  - Parameters so far: `panel.bypass` (version hint 1), `dyn.volume` (2; 0 to 15 dB in 0.1 steps, default 0), `dyn.push` (3; 0 to 15 in 0.1 steps, default 0). Each step adds its own. Input and output peak sources (`LevelMeterSource`) are kept (no meter uses them on the panel now).
+  - **Signal path in `processChunk`:** the input is copied to `dry` and delayed by the chain's latency (`effects::FixedDelay`), the modules run in place (so far PUSH's compressor, then VOLUME's limiter), then `effects::MatchedBypass` (`dsp/MatchedBypass.h`) mixes, then the **output** is metered (what's heard). Hosts sending bigger blocks than `prepareToPlay` said are split into chunks. A module that adds latency must add it to `setLatencySamples` and to `dryDelay`.
+  - **VOLUME (`dsp/Limiter.h`, `effects::TruePeakLimiter`):** gain (0 to +15 dB, smoothed 50 ms) into a look-ahead true-peak limiter, ceiling **−1 dBTP** (aims at −1.06 for what detection misses), always on (a mix peaking over −1 dBTP is caught at VOLUME 0). Detection is `TruePeak::next` at **8×** (the meter stays 4×, the standard's); a hold over the 3 ms look-ahead + 1 sample, a 100 ms release, then a 3 ms moving average, applied to audio delayed by `lookAhead − 1 + TruePeak::delay` (16) samples: 159 at 48 kHz, fixed whatever VOLUME is, reported from the constructor (48 kHz guess) and in `prepareToPlay`. Stereo linked. Its release runs in double precision (in float it got stuck 0.001 dB under 1 after any limiting; a test checks it lets go completely). Gain is exactly 1 with nothing to limit, so audio under the ceiling comes out bit for bit, only later. Measured with a 16× reference: music-like material (content to 20 kHz) stays under −1.0 dBTP; full-band white noise to Nyquist slips ~1 dB past (a known limit; a 4× meter still reads it under). Under 1% of a core. Its gain reduction drives VOLUME's LEDs (`getVolumeReduction`).
+  - **PUSH (`dsp/GlueCompressor.h`, `effects::GlueCompressor`):** a glue compressor, our design after PR7-C's (its soft-knee curve, RMS detector, stretching release). Along p = PUSH/15 (`curveFor`): threshold −6 → −24 dB, ratio 1:1 → 3:1, attack 30 → 10 ms, release 300 → 150 ms (stretching up to 2× after long, hard work), make-up half the reduction of a −6 dBFS peak (0 → +6 dB). RMS detector (5 ms, +3 dB so thresholds read as peak levels) on the louder channel, with an 80 Hz high-pass in the sidechain; soft knee 6 dB; stereo linked. PUSH smoothed over 100 ms. At 0 (and done releasing) it doesn't run: bit for bit. No latency. Drives PUSH's LEDs (`getPushReduction`). Its slow attack lets a hit's start through with the make-up gain; VOLUME's limiter catches it.
   - **BYPASS at matched loudness:** measures the short-term loudness of `dry` and of the processed mix and, bypassed, plays `dry` turned to the processed loudness (20 ms crossfade, match smoothed over 0.5 s, held below −60 LUFS, ±24 dB, a boost capped so `dry`'s peaks over the last 3 s stay under −0.3 dBFS). The modules keep running while bypassed. A 0 dB match is exactly 1: with nothing processing, bypass is bit for bit. The host's own bypass is left as JUCE's plain bypass (not linked to `panel.bypass`).
   - **Metering (`dsp/Loudness.h`, `dsp/TruePeak.h`, `dsp/VuBallistics.h`):** BS.1770-4 K-weighting and short-term loudness (3 s, 100 ms steps; mono counts as one channel); true peak, 4× oversampled below 96 kHz (2× to 192 kHz), 32 taps per phase; the VU needle as a spring (damping 0.8127, 13.51 rad/s: 99% in 300 ms, 1.25% overshoot), run per channel at the sample rate, the louder side shown, scaled so a sine reads its peak. Handed to the UI by atomics (`getVuLevel`, `getShortTermLufs`, `getTruePeak` via `HeldPeakSource`, cleared on a click and when the host starts playing).
   - **0 VU reference:** −18, −14 (default) or −10 dBFS, in the gear menu, saved in the project (a property of the parameter state, `vuReference`, not a host parameter). Printed small on the VU face.
@@ -30,8 +31,8 @@ PR7-C runs on many tracks, so it adds no delay and stays light. Mastering runs o
   - **`LoudnessDisplay`** (`meter.loudness`), under the VU: short-term LUFS on the left, max true peak (dBTP, red above −1) on the right, seven-segment. A click clears the true peak.
   - **Levers:** BYPASS up = bypassed (its tip glows), attached to `panel.bypass`. RESET is momentary: up, then back down after 250 ms.
   - **PUSH and VOLUME's green LED rings** (`setGainReduction`): 12 LEDs, 1 per dB, on the knob's dark rim along the top end of its travel, drawn over the knob (`paintOverChildren`).
-  - **VOLUME's knob** is attached to `dyn.volume` (double-click: 0). The other knobs are still inert.
-  - `PARAGON_SNAPSHOT_DEMO=1` sets the needle, the readout (−9.8 LUFS, −0.3 dBTP), VOLUME (6 dB) and the LEDs for a render.
+  - **PUSH and VOLUME's knobs** are attached to `dyn.push` and `dyn.volume` (double-click: 0). The other knobs are still inert.
+  - `PARAGON_SNAPSHOT_DEMO=1` sets the needle, the readout (−9.8 LUFS, −0.3 dBTP), PUSH (7.5), VOLUME (6 dB) and the LEDs for a render.
 - **Carried over from PR7-C** (see its CLAUDE.md for the history): `ParagonLookAndFeel` (incl. black menus and dialogs), `Finish` (Pearl White / White + Neon / Pearl Black; settings file "Paragon PR7-M"; Pearl Black is PR7-G's face gradient), `Controls` (`Knob`, `Led`, `LeverSwitch`, `RoundButton`, `GainReductionMeter`), `LevelMeter` (orange-to-pink LEDs; not on the panel now), `LedDisplay`, `Logo` (now "-M"), `dsp/EffectUtils.h` (`BypassFade`), `dsp/Biquad.h`.
 - **`reference/pr7c/dsp/`:** PR7-C's EQ, compressor, limiter, saturation, console colour and stereo tools. **Not compiled.** Starting points to copy into `source/dsp/` and adapt when a module needs them (the limiter would want look-ahead here).
 
@@ -68,7 +69,7 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 
 1. **The panel (approved) and the metering:** the VU needle's movement, LUFS and true-peak readouts, BYPASS (matched loudness) and RESET. Built; awaiting the owner's listening test.
 2. **VOLUME:** the look-ahead true-peak limiter. Built and released in 0.3.0; the owner is to try it (the step 2 decisions below are still to confirm).
-3. **PUSH:** the glue compressor macro.
+3. **PUSH:** the glue compressor macro. Built; to show the owner.
 4. **BODY, FOCUS, AIR.**
 5. **BASS PUNCH, TRANSIENTS.**
 6. **ANALOG, WIDTH.**
@@ -86,6 +87,12 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 - **VOLUME** 0 to 15 = 0 to +15 dB into the limiter.
 - **Ceiling** fixed at −1 dBTP (streaming's recommendation; the readout's red line).
 - **The limiter is always on**, even at VOLUME 0 (switching it off would change the latency).
+
+## Decisions (step 3, our defaults, to confirm with the owner)
+
+- **PUSH's curve** as above (threshold −6 → −24 dB, ratio 1 → 3, attack 30 → 10 ms, release 300 → 150 ms): our guess at "gentle to hard" for a mix bus.
+- **Make-up gain** half the reduction at a −6 dBFS peak, so PUSH makes the mix denser, not just quieter.
+- **The sidechain leaves out the bass under 80 Hz**, so kick and bass don't pump the mix (BASS PUNCH handles the low end).
 
 ## Names
 

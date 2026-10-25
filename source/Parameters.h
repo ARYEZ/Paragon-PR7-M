@@ -13,6 +13,8 @@ namespace ParamIDs
     inline constexpr const char* bypass = "panel.bypass";
     // VOLUME: gain into the true-peak limiter, 0 to +15 dB.
     inline constexpr const char* volume = "dyn.volume";
+    // PUSH: the glue compressor, gentle (0) to hard (15).
+    inline constexpr const char* push = "dyn.push";
 }
 
 namespace Parameters
