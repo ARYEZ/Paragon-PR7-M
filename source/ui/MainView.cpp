@@ -148,17 +148,23 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
                      "and takes the lift back on loud bass notes, so the low end comes out fuller and more even."),
             ParamIDs::bassPunch);
 
-    // The header: the finish.
-    auto* settings = new juce::TextButton();
-    ownedControls.add (settings);
-    settings->getProperties().set (ParagonLookAndFeel::consoleButtonProperty, true);
-    settings->getProperties().set (ParagonLookAndFeel::iconProperty, "gear");
-    settings->getProperties().set (ParagonLookAndFeel::bareProperty, true);
-    settings->setTooltip ("Settings: the panel's finish, and the level the VU meter's 0 VU stands for");
-    settings->setBounds (1382, 20, 40, 40);
-    settings->onClick = [this] { showSettingsMenu(); };
-    addAndMakeVisible (settings);
-    controls["settings"] = settings;
+    // The header: the presets and the settings.
+    addHeaderButton ("preset.previous", {}, { 522, 24, 32, 32 }, "The previous preset").getProperties().set (ParagonLookAndFeel::iconProperty, "left");
+    addHeaderButton ("preset.next", {}, { 894, 24, 32, 32 }, "The next preset").getProperties().set (ParagonLookAndFeel::iconProperty, "right");
+    for (const auto* id : { "preset.previous", "preset.next" })
+        findControl (id)->getProperties().set (ParagonLookAndFeel::bareProperty, true);
+    dynamic_cast<juce::Button*> (findControl ("preset.previous"))->onClick = [this] { processor.getPresets().step (-1); };
+    dynamic_cast<juce::Button*> (findControl ("preset.next"))->onClick = [this] { processor.getPresets().step (1); };
+    addHeaderButton ("preset.save", "SAVE", { 1203, 22, 96, 36 }, "Save the knobs' settings as your own preset").onClick = [this] { askToSavePreset(); };
+    auto& presetMenu = addHeaderButton ("preset.menu", {}, { 1314, 22, 56, 36 },
+                                        "More preset options: back to the defaults, delete one of your presets, find the presets folder");
+    presetMenu.getProperties().set (ParagonLookAndFeel::iconProperty, "dots");
+    presetMenu.onClick = [this] { showPresetMenu(); };
+    auto& settings = addHeaderButton ("settings", {}, { 1382, 20, 40, 40 }, "Settings: the panel's finish, and the level the VU meter's 0 VU stands for");
+    settings.getProperties().set (ParagonLookAndFeel::iconProperty, "gear");
+    settings.getProperties().set (ParagonLookAndFeel::bareProperty, true);
+    settings.onClick = [this] { showSettingsMenu(); };
+    shownPreset = presetDisplayText();
 
     grain = Finish::makeSatinGrain (width, height, 7);
     Finish::changes().addChangeListener (this);
@@ -193,6 +199,18 @@ void MainView::attach (Knob& knob, const char* parameterId)
         if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
             knob.slider.setDoubleClickReturnValue (true, ranged->convertFrom0to1 (ranged->getDefaultValue()));
     }
+}
+
+juce::TextButton& MainView::addHeaderButton (const juce::String& id, const juce::String& text, juce::Rectangle<int> bounds, const juce::String& tooltip)
+{
+    auto* button = new juce::TextButton (text);
+    ownedControls.add (button);
+    button->getProperties().set (ParagonLookAndFeel::consoleButtonProperty, true);
+    button->setTooltip (tooltip);
+    button->setBounds (bounds);
+    addAndMakeVisible (button);
+    controls[id] = button;
+    return *button;
 }
 
 LeverSwitch& MainView::addLever (const juce::String& id, juce::Point<float> centre, const juce::String& caption, const juce::String& tooltip, bool glowWhenUp)
@@ -241,6 +259,142 @@ void MainView::showSettingsMenu()
                           vu.setReference (reference);
                       });
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (findControl ("settings")));
+}
+
+void MainView::timerCallback()
+{
+    updateMeters();
+    // The preset's name follows loads, saves and changes made since.
+    if (const auto text = presetDisplayText(); text != shownPreset)
+    {
+        shownPreset = text;
+        repaint (presetDisplay.toNearestInt());
+    }
+}
+
+juce::String MainView::presetDisplayText() const
+{
+    auto& presets = processor.getPresets();
+    const auto name = presets.getCurrentName();
+    if (name.isEmpty())
+        return "Untitled";
+    return presets.isModified() ? name + " *" : name;   // * : changed since it was loaded
+}
+
+void MainView::mouseDown (const juce::MouseEvent& event)
+{
+    // Clicking the preset's name lists them all.
+    if (presetDisplay.contains (event.position))
+        showPresetList();
+}
+
+void MainView::showPresetList()
+{
+    auto& presets = processor.getPresets();
+    const auto list = presets.getPresets();
+    const auto* current = presets.findCurrent (list);
+    juce::PopupMenu menu;
+    bool userHeader = false;
+    menu.addSectionHeader ("Factory");
+    for (size_t i = 0; i < list.size(); ++i)
+    {
+        if (! list[i].factory && ! userHeader)
+        {
+            menu.addSectionHeader ("Yours");
+            userHeader = true;
+        }
+        menu.addItem ((int) i + 1, list[i].name, true, &list[i] == current);
+    }
+    if (! userHeader)
+        menu.addItem (-1, "(Your presets appear here once you SAVE one)", false);
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (findControl ("preset.next")).withTargetScreenArea (
+                            localAreaToGlobal (presetDisplay.toNearestInt())),
+                        [this, list] (int chosen)
+                        {
+                            if (juce::isPositiveAndNotGreaterThan (chosen, (int) list.size()))
+                                processor.getPresets().load (list[(size_t) chosen - 1]);
+                        });
+}
+
+void MainView::showPresetMenu()
+{
+    auto& presets = processor.getPresets();
+    const auto list = presets.getPresets();
+    const auto* current = presets.findCurrent (list);
+    const auto deletable = current != nullptr && ! current->factory;
+    juce::PopupMenu menu;
+    menu.addItem (1, "Back to the default settings");
+    menu.addItem (2, deletable ? "Delete \"" + current->name + "\"" : juce::String ("Delete (only your own presets)"), deletable);
+    menu.addItem (3, "Show the presets folder");
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (findControl ("preset.menu")),
+                        [this, toDelete = deletable ? *current : PresetManager::Preset()] (int chosen)
+                        {
+                            auto& p = processor.getPresets();
+                            if (chosen == 1)
+                                p.loadFactory (0);
+                            else if (chosen == 2)
+                                juce::AlertWindow::showAsync (juce::MessageBoxOptions()
+                                                                  .withIconType (juce::MessageBoxIconType::QuestionIcon)
+                                                                  .withTitle ("Delete preset")
+                                                                  .withMessage ("Delete \"" + toDelete.name + "\"? This can't be undone.")
+                                                                  .withButton ("Delete").withButton ("Cancel").withAssociatedComponent (this),
+                                                              [this, toDelete] (int result)
+                                                              {
+                                                                  if (result == 1)
+                                                                      processor.getPresets().remove (toDelete);
+                                                              });
+                            else if (chosen == 3)
+                            {
+                                p.getUserFolder().createDirectory();
+                                p.getUserFolder().startAsProcess();
+                            }
+                        });
+}
+
+void MainView::askToSavePreset()
+{
+    auto& presets = processor.getPresets();
+    const auto list = presets.getPresets();
+    const auto* current = presets.findCurrent (list);
+    saveDialog = std::make_unique<juce::AlertWindow> ("Save preset", "A name for your preset:", juce::MessageBoxIconType::NoIcon, this);
+    saveDialog->addTextEditor ("name", current != nullptr && ! current->factory ? current->name : juce::String());
+    saveDialog->addButton ("Save", 1, juce::KeyPress (juce::KeyPress::returnKey));
+    saveDialog->addButton ("Cancel", 0, juce::KeyPress (juce::KeyPress::escapeKey));
+    saveDialog->enterModalState (true, juce::ModalCallbackFunction::create ([this] (int result)
+    {
+        const auto name = saveDialog->getTextEditorContents ("name").trim();
+        saveDialog.reset();
+        if (result == 1 && name.isNotEmpty())
+            savePreset (name);
+    }), false);
+}
+
+void MainView::savePreset (const juce::String& name)
+{
+    auto& presets = processor.getPresets();
+    const auto list = presets.getPresets();
+    const auto clash = std::find_if (list.begin(), list.end(), [&] (const auto& p) { return p.name.equalsIgnoreCase (name); });
+    const auto tell = [this] (const juce::String& message)
+    {
+        juce::AlertWindow::showAsync (juce::MessageBoxOptions().withIconType (juce::MessageBoxIconType::WarningIcon).withTitle ("Save preset")
+                                          .withMessage (message).withButton ("OK").withAssociatedComponent (this), nullptr);
+    };
+    if (clash != list.end() && clash->factory)
+        return tell ("\"" + clash->name + "\" is a factory preset. Please pick another name.");
+    if (clash != list.end() && clash->name != presets.getCurrentName())
+    {
+        juce::AlertWindow::showAsync (juce::MessageBoxOptions().withIconType (juce::MessageBoxIconType::QuestionIcon).withTitle ("Save preset")
+                                          .withMessage ("You already have a preset called \"" + clash->name + "\". Replace it?")
+                                          .withButton ("Replace").withButton ("Cancel").withAssociatedComponent (this),
+                                      [this, name, tell] (int result)
+                                      {
+                                          if (result == 1 && ! processor.getPresets().save (name))
+                                              tell ("The preset couldn't be saved.");
+                                      });
+        return;
+    }
+    if (! presets.save (name))
+        tell ("The preset couldn't be saved.");
 }
 
 void MainView::changeListenerCallback (juce::ChangeBroadcaster*)
@@ -303,7 +457,7 @@ void MainView::paint (juce::Graphics& g)
 {
     g.fillAll (ParagonColours::background);
 
-    // Header: the emblem and the name.
+    // Header: the emblem, the name, and the preset display.
     {
         const juce::Rectangle<float> emblem { 34.0f, 14.0f, 42.0f, 40.0f };
         juce::Path triangle;
@@ -315,6 +469,14 @@ void MainView::paint (juce::Graphics& g)
         triangle.applyTransform (juce::AffineTransform::scale (0.5f, 0.5f, emblem.getCentreX(), emblem.getCentreY() - 3.0f));
         g.strokePath (triangle, juce::PathStrokeType (1.5f));
         drawName (g, { 98.0f, 18.0f });
+
+        g.setColour (juce::Colour (0xff0a090b));
+        g.fillRoundedRectangle (presetDisplay, 6.0f);
+        g.setColour (ParagonColours::panelEdge);
+        g.drawRoundedRectangle (presetDisplay, 6.0f, 1.0f);
+        g.setColour (juce::Colour (0xffffb04a));
+        g.setFont (juce::FontOptions (19.0f));
+        g.drawFittedText (presetDisplayText(), presetDisplay.reduced (48.0f, 0.0f).toNearestInt(), juce::Justification::centred, 1, 0.8f);
     }
 
     // The body: a dark frame, edged in red-orange light.

@@ -31,14 +31,16 @@ PR7-C runs on many tracks, so it adds no delay and stays light. Mastering runs o
   - **BYPASS at matched loudness:** measures the short-term loudness of `dry` and of the processed mix and, bypassed, plays `dry` turned to the processed loudness (20 ms crossfade, match smoothed over 0.5 s, held below −60 LUFS, ±24 dB, a boost capped so `dry`'s peaks over the last 3 s stay under −0.3 dBFS). The modules keep running while bypassed. A 0 dB match is exactly 1: with nothing processing, bypass is bit for bit. The host's own bypass is left as JUCE's plain bypass (not linked to `panel.bypass`).
   - **Metering (`dsp/Loudness.h`, `dsp/TruePeak.h`, `dsp/VuBallistics.h`):** BS.1770-4 K-weighting and short-term loudness (3 s, 100 ms steps; mono counts as one channel); true peak, 4× oversampled below 96 kHz (2× to 192 kHz), 32 taps per phase; the VU needle as a spring (damping 0.8127, 13.51 rad/s: 99% in 300 ms, 1.25% overshoot), run per channel at the sample rate, the louder side shown, scaled so a sine reads its peak. Handed to the UI by atomics (`getVuLevel`, `getShortTermLufs`, `getTruePeak` via `HeldPeakSource`, cleared on a click and when the host starts playing).
   - **0 VU reference:** −18, −14 (default) or −10 dBFS, in the gear menu, saved in the project (a property of the parameter state, `vuReference`, not a host parameter). Printed small on the VU face.
-  - **RESET** (`resetKnobs`): every parameter but `panel.bypass` back to its default, each as a host gesture.
+  - **RESET** (`resetKnobs`): loads the Default preset: every parameter but `panel.bypass` back to its default, each as a host gesture, and the name reads "Default".
+  - **Presets (`source/PresetManager`, carried over from PR7-C):** factory presets (in code, each listing only what differs from the defaults; starting points for a whole mix, our own settings) and user presets (XML `.pr7mpreset` files in Documents/Paragon PR7-M/Presets). The processor owns one (`getPresets()`); the current name lives in the state (`presetName`). A preset sets every knob; `isKept`: only `panel.bypass` (the 0 VU reference isn't a parameter, so presets don't touch it either). Not exposed to the host as programs (hosts calling setCurrentProgram (0) at song load would reset the settings). Factory VOLUMEs assume a mix around −18 to −14 LUFS; measured on `denseMix` (−15.1 / −17.6 LUFS in): Gentle −13.2 / −15.4, Streaming −12.7 / −14.7, Pop −9.3 / −10.8, EDM −8.5 / −8.6, Maximum Loudness (VOLUME 12, gritty on purpose) −7.1 / −7.6.
 - **`source/ui/MainView`:** a fixed **1448 × 640** canvas (the header, then the faceplate `MainView::faceplate()`), scaled by the editor. Every control of the agreed layout is placed and attached to its parameter. Controls are registered by ID (`tone.air`, `tone.focus`, `tone.body`, `dyn.push`, `dyn.volume`, `panel.reset`, `panel.bypass`, `stereo.width`, `dyn.transients`, `colour.analog`, `dyn.bassPunch`).
   - **`VuMeter`**: cream face, −20 to +3 VU on a real VU's voltage spacing, red from 0 up, needle, glass. Shows the **output** (owner decision). It only draws (`setNeedle`, `setReference`); the ballistics are the processor's. `MainView::updateMeters` (60 Hz timer; tests call it directly, since JUCE's timer thread can't be relied on in tests) reads the processor and lets the needle fall by itself if the host stops sending audio.
   - **`LoudnessDisplay`** (`meter.loudness`), under the VU: short-term LUFS on the left, max true peak (dBTP, red above −1) on the right, seven-segment. A click clears the true peak.
   - **Levers:** BYPASS up = bypassed (its tip glows), attached to `panel.bypass`. RESET is momentary: up, then back down after 250 ms.
   - **PUSH and VOLUME's green LED rings** (`setGainReduction`): 12 LEDs, 1 per dB, on the knob's dark rim along the top end of its travel, drawn over the knob (`paintOverChildren`).
   - **Every knob** is attached to its parameter (`MainView::attach`; double-click: the default).
-  - `PARAGON_SNAPSHOT_DEMO=1` sets the needle, the readout (−9.8 LUFS, −0.3 dBTP), AIR (+3), FOCUS (−3), BODY (+1), BASS PUNCH (4), TRANSIENTS (+4), ANALOG (3), WIDTH (+1), PUSH (7.5), VOLUME (6 dB) and the LEDs for a render.
+  - **The header** (as PR7-C's, same positions): the preset name centred over the VU (click it for the list: Factory, then "Yours" A to Z; " *" = changed since loaded, checked in the 60 Hz timer) with ◀ ▶ (step through, wrapping); **SAVE** (asks for a name; asks before replacing one of yours; factory names refused); **"…"** (back to the defaults, delete the current user preset, show the presets folder); the gear.
+  - `PARAGON_SNAPSHOT_DEMO=1` loads "Pop - Polished" and sets the needle, the readout (−9.8 LUFS, −0.3 dBTP) and the LEDs for a render.
 - **Carried over from PR7-C** (see its CLAUDE.md for the history): `ParagonLookAndFeel` (incl. black menus and dialogs), `Finish` (Pearl White / White + Neon / Pearl Black; settings file "Paragon PR7-M"; Pearl Black is PR7-G's face gradient), `Controls` (`Knob`, `Led`, `LeverSwitch`, `RoundButton`, `GainReductionMeter`), `LevelMeter` (orange-to-pink LEDs; not on the panel now), `LedDisplay`, `Logo` (now "-M"), `dsp/EffectUtils.h` (`BypassFade`), `dsp/Biquad.h`.
 - **`reference/pr7c/dsp/`:** PR7-C's EQ, compressor, limiter, saturation, console colour and stereo tools. **Not compiled.** Starting points to copy into `source/dsp/` and adapt when a module needs them (the limiter would want look-ahead here).
 
@@ -79,7 +81,7 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 4. **BODY, FOCUS, AIR.** Built and released in 0.5.0; the owner is to try them (the step 4 decisions below are still to confirm).
 5. **BASS PUNCH, TRANSIENTS.** Built and released in 0.6.0 (with VOLUME's clipper rework); the owner is to try them.
 6. **ANALOG, WIDTH.** Built and released in 0.7.0; the owner is to try them.
-7. **Presets.**
+7. **Presets.** Built (PR7-C's system, mastering factory presets); the owner is to try them (the step 7 decisions below are still to confirm).
 8. **The assistant** (later).
 
 ## Decisions (step 1, agreed with the owner)
@@ -115,6 +117,12 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 
 - **ANALOG** mostly 2nd harmonic (warmth) with a quarter 3rd (edge), up to +12 dB of drive: subtle at 5, clearly coloured at 10. It adds 61 samples (1.3 ms) of delay, to stay clean.
 - **WIDTH** −5 mono to +5 twice as wide; the bass under 120 Hz kept in the middle (taken out of the side as soon as WIDTH moves off 0).
+
+## Decisions (step 7, our defaults, to confirm with the owner)
+
+- **The same preset system as PR7-C:** factory and user presets (SAVE), the name with ◀ ▶ in the header, no A/B. RESET = the Default preset.
+- **A preset holds every knob, including VOLUME** (so a preset gets you a finished loudness); BYPASS and the 0 VU reference aren't part of one.
+- **Factory presets** by style and by character (13 beside Default), our own starting points: Gentle, Streaming (about −14 LUFS from a typical mix), Pop, Hip-Hop, EDM, Rock, Acoustic, Vocal Forward, Warm Analog, Bright and Open, Soft and Smooth, Lo-Fi, Maximum Loudness.
 
 ## Names
 

@@ -25,6 +25,9 @@
 // short-term loudness and true peak. BYPASS (up = bypassed) is the bypass
 // parameter; RESET is momentary: flick it up and it springs back, setting
 // every knob to its starting point.
+//
+// The header runs the presets, as PR7-C's does: the name (click it for the
+// list), the arrows either side of it, SAVE and the "..." menu.
 class MainView final : public juce::Component,
                        private juce::ChangeListener,
                        private juce::Timer
@@ -38,6 +41,7 @@ public:
 
     void paint (juce::Graphics&) override;
     void paintOverChildren (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
 
     juce::Component* findControl (const juce::String& id) const;
     const std::map<juce::String, juce::Component*>& getControls() const noexcept { return controls; }
@@ -56,8 +60,19 @@ public:
 
 private:
     void changeListenerCallback (juce::ChangeBroadcaster*) override;   // the finish changed
-    void timerCallback() override { updateMeters(); }
+    void timerCallback() override;
     void showSettingsMenu();
+    juce::TextButton& addHeaderButton (const juce::String& id, const juce::String& text, juce::Rectangle<int> bounds, const juce::String& tooltip);
+
+    // The header's presets.
+    juce::String presetDisplayText() const;
+    void showPresetList();
+    void showPresetMenu();
+    void askToSavePreset();
+    void savePreset (const juce::String& name);
+    const juce::Rectangle<float> presetDisplay { 513.0f, 18.0f, 422.0f, 44.0f };
+    juce::String shownPreset;
+    std::unique_ptr<juce::AlertWindow> saveDialog;
     Knob& addKnob (const juce::String& id, juce::Point<float> centre, float ringRadius, std::vector<juce::String> scale,
                    const juce::String& caption, const juce::String& tooltip);
     void attach (Knob&, const char* parameterId);

@@ -23,6 +23,7 @@ ParagonPR7MAudioProcessor::ParagonPR7MAudioProcessor()
     analogColour.prepare (48000.0, 512);
     clipper.prepare (48000.0, 512);
     setLatencySamples (analogColour.getLatency() + clipper.getLatency() + effects::TruePeakLimiter::latencyFor (48000.0));
+    presets.stateRestored();   // "Default", unmodified
 }
 
 bool ParagonPR7MAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -161,13 +162,7 @@ void ParagonPR7MAudioProcessor::setVuReference (int dBFS)
 
 void ParagonPR7MAudioProcessor::resetKnobs()
 {
-    for (auto* parameter : AudioProcessor::getParameters())   // the plugin's, not the tree's
-        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter); ranged != nullptr && ranged->getParameterID() != ParamIDs::bypass)
-        {
-            ranged->beginChangeGesture();
-            ranged->setValueNotifyingHost (ranged->getDefaultValue());
-            ranged->endChangeGesture();
-        }
+    presets.loadFactory (0);   // Default: every knob at its starting point, BYPASS left alone
 }
 
 void ParagonPR7MAudioProcessor::pushMeters (std::array<LevelMeterSource, 2>& meters, const juce::AudioBuffer<float>& buffer, int numSamples) noexcept
@@ -190,7 +185,10 @@ void ParagonPR7MAudioProcessor::getStateInformation (juce::MemoryBlock& destinat
 void ParagonPR7MAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     if (const auto xml = getXmlFromBinary (data, sizeInBytes); xml != nullptr && xml->hasTagName (parameters.state.getType()))
+    {
         parameters.replaceState (juce::ValueTree::fromXml (*xml));
+        presets.stateRestored();
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

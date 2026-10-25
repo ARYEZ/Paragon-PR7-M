@@ -4,6 +4,7 @@
 
 #include "LevelMeterSource.h"
 #include "Parameters.h"
+#include "PresetManager.h"
 #include "dsp/Analog.h"
 #include "dsp/BassPunch.h"
 #include "dsp/Clipper.h"
@@ -87,9 +88,12 @@ public:
     int getVuReference() const;
     void setVuReference (int dBFS);
 
-    // RESET: every knob back to its starting point, as host gestures (so
-    // a host that records them can undo it). BYPASS isn't a knob and stays
-    // as it is. Message thread only.
+    // Factory and user presets (the header). Message thread only.
+    PresetManager& getPresets() noexcept { return presets; }
+
+    // RESET: every knob back to its starting point (the Default preset), as
+    // host gestures (so a host that records them can undo it). BYPASS isn't
+    // a knob and stays as it is. Message thread only.
     void resetKnobs();
 
 private:
@@ -97,6 +101,7 @@ private:
     void pushMeters (std::array<LevelMeterSource, 2>&, const juce::AudioBuffer<float>&, int numSamples) noexcept;
 
     juce::AudioProcessorValueTreeState parameters;
+    PresetManager presets { parameters };
     std::atomic<float>* bypass = nullptr;
     std::atomic<float>* volume = nullptr;
     std::atomic<float>* push = nullptr;
