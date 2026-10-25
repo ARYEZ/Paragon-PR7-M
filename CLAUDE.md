@@ -69,7 +69,7 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 
 1. **The panel (approved) and the metering:** the VU needle's movement, LUFS and true-peak readouts, BYPASS (matched loudness) and RESET. Built; awaiting the owner's listening test.
 2. **VOLUME:** the look-ahead true-peak limiter. Built and released in 0.3.0; the owner is to try it (the step 2 decisions below are still to confirm).
-3. **PUSH:** the glue compressor macro. Built; to show the owner.
+3. **PUSH:** the glue compressor macro. Built and released in 0.4.0; the owner is to try it (the step 3 decisions below are still to confirm).
 4. **BODY, FOCUS, AIR.**
 5. **BASS PUNCH, TRANSIENTS.**
 6. **ANALOG, WIDTH.**
@@ -113,7 +113,7 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 
 ## Releases
 
-- **Version 0.0.0 is never released** (CI skips it). 0.1.0 (a panel preview, knobs inert) was released so the owner could see the panel in BeatMaker; 0.2.0 (step 1: the metering, BYPASS and RESET; knobs still inert) for the owner to try them; 0.3.0 (step 2: VOLUME, the limiter).
+- **Version 0.0.0 is never released** (CI skips it). 0.1.0 (a panel preview, knobs inert) was released so the owner could see the panel in BeatMaker; 0.2.0 (step 1: the metering, BYPASS and RESET; knobs still inert) for the owner to try them; 0.3.0 (step 2: VOLUME, the limiter); 0.4.0 (step 3: PUSH, and the limiter's release fix).
 - To release: bump `project(ParagonPR7M VERSION x.y.z)` in CMakeLists.txt, add a matching `## x.y.z` section at the top of CHANGELOG.md, and push. CI builds Windows, macOS and Linux, runs the tests and pluginval, and publishes a GitHub Release with the three zips, using that changelog section as the notes. About 15 minutes later, check all three zips are there.
 - The owner installs from GitHub Releases on **Windows** and works in **BeatMaker**.
 

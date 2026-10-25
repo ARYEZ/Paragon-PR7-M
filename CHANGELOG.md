@@ -2,6 +2,18 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.4.0
+
+**PUSH works: the compressor that holds the mix together.** The second knob that changes the sound. BODY, FOCUS and AIR come next.
+
+- **PUSH** compresses the whole mix, gentle to hard on one knob. Turning it up makes the mix denser and more even: it starts turning down lower, harder and quicker, all along one curve. At 0 it does nothing.
+- **The green LEDs** round PUSH show how much it's turning down, one LED per dB.
+- **Drum hits keep their snap:** it reacts slowly at first (30 ms at gentle settings, 10 ms at 15), so the start of each hit gets through before it acts.
+- **It doesn't pump:** it lets go more slowly after long, hard passages. And the deep bass (under 80 Hz) doesn't set it off, so the kick and bass don't make the whole mix duck.
+- **Denser, not quieter:** it turns the result back up by about half of what it takes off at typical levels (up to +6 dB at 15), so pushing doesn't just make the mix quieter.
+- **With VOLUME:** PUSH comes first, then VOLUME's limiter, which catches the start of any hit that PUSH lets through too loud.
+- **Fixed:** after VOLUME's limiter had turned down even once, it stayed turned down by about 0.001 dB for good. Far too little to hear, but quiet passages are now exactly untouched again, as they should be.
+
 ## 0.3.0
 
 **VOLUME works: louder, without clipping.** The first knob that changes the sound. The other knobs still do nothing; PUSH (the compressor) comes next.
