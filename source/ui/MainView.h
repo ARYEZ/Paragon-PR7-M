@@ -60,6 +60,7 @@ private:
     void showSettingsMenu();
     Knob& addKnob (const juce::String& id, juce::Point<float> centre, float ringRadius, std::vector<juce::String> scale,
                    const juce::String& caption, const juce::String& tooltip);
+    void attach (Knob&, const char* parameterId);
     LeverSwitch& addLever (const juce::String& id, juce::Point<float> centre, const juce::String& caption, const juce::String& tooltip,
                            bool glowWhenUp = false);
     void paintReductionRing (juce::Graphics&, const Knob&, float reductionDb) const;

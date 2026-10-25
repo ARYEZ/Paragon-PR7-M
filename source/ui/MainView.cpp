@@ -90,30 +90,23 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
     using P = juce::Point<float>;
 
     // Down the left: the tone.
-    addKnob ("tone.air", P (287, 170), 36, { "-15", "-10", "-6", "-3", "0", "+3", "+6", "+10", "+15" }, "AIR",
-             later ("AIR: a gentle boost or cut of the high frequencies", 4));
-    addKnob ("tone.focus", P (136, 326), 38, { "-15", "-10", "-6", "-3", "0", "+3", "+6", "+10", "+15" }, "FOCUS",
-             later ("FOCUS: the clarity of the mids (how well the words and the lead come through)", 4));
-    addKnob ("tone.body", P (287, 480), 36, numbers (-5, 5, 1, true), "BODY",
-             later ("BODY: how much low end, without upsetting the overall balance", 4));
+    attach (addKnob ("tone.air", P (287, 170), 36, { "-15", "-10", "-6", "-3", "0", "+3", "+6", "+10", "+15" }, "AIR",
+                     "AIR: a gentle boost or cut of the very top (above about 12 kHz), up to 6 dB either way"), ParamIDs::air);
+    attach (addKnob ("tone.focus", P (136, 326), 38, { "-15", "-10", "-6", "-3", "0", "+3", "+6", "+10", "+15" }, "FOCUS",
+                     "FOCUS: the clarity of the mids, around 2.5 kHz (how well the words and the lead come through), up to 6 dB either way"),
+            ParamIDs::focus);
+    attach (addKnob ("tone.body", P (287, 480), 36, numbers (-5, 5, 1, true), "BODY",
+                     "BODY: more or less low end (around 200 Hz and down), with the mix's loudness held the same"), ParamIDs::body);
 
     // The middle: PUSH, the VU meter, VOLUME; RESET and BYPASS above; WIDTH below.
-    auto& push = addKnob ("dyn.push", P (470, 346), 74, numbers (0, 15, 1.5f, false), "PUSH",
-                          "PUSH: the compressor, gentle to hard on one knob. It holds the mix together and makes it denser. "
-                          "The green LEDs show how much it's turning down (1 dB each).");
-    if (auto* parameter = processor.getParameters().getParameter (ParamIDs::push))
-    {
-        attachments.push_back (std::make_unique<juce::SliderParameterAttachment> (*parameter, push.slider));
-        push.slider.setDoubleClickReturnValue (true, 0.0);
-    }
-    auto& volume = addKnob ("dyn.volume", P (978, 346), 74, numbers (0, 15, 1.5f, false), "VOLUME",
-                            "VOLUME: louder, without clipping or harshness. Turns the mix up (0 to +15 dB) into a limiter "
-                            "that keeps every peak under -1 dBTP. The green LEDs show how much it's turning down (1 dB each).");
-    if (auto* parameter = processor.getParameters().getParameter (ParamIDs::volume))
-    {
-        attachments.push_back (std::make_unique<juce::SliderParameterAttachment> (*parameter, volume.slider));
-        volume.slider.setDoubleClickReturnValue (true, 0.0);
-    }
+    attach (addKnob ("dyn.push", P (470, 346), 74, numbers (0, 15, 1.5f, false), "PUSH",
+                     "PUSH: the compressor, gentle to hard on one knob. It holds the mix together and makes it denser. "
+                     "The green LEDs show how much it's turning down (1 dB each)."),
+            ParamIDs::push);
+    attach (addKnob ("dyn.volume", P (978, 346), 74, numbers (0, 15, 1.5f, false), "VOLUME",
+                     "VOLUME: louder, without clipping or harshness. Turns the mix up (0 to +15 dB) into a limiter "
+                     "that keeps every peak under -1 dBTP. The green LEDs show how much it's turning down (1 dB each)."),
+            ParamIDs::volume);
     auto& reset = addLever ("panel.reset", P (480, 158), "RESET", "RESET: flick it up to set every knob back to its starting point");
     reset.onChange = [this, &reset]
     {
@@ -186,6 +179,18 @@ Knob& MainView::addKnob (const juce::String& id, juce::Point<float> centre, floa
     addAndMakeVisible (knob);
     controls[id] = knob;
     return *knob;
+}
+
+void MainView::attach (Knob& knob, const char* parameterId)
+{
+    // The knob follows its parameter; a double-click sets it back to its
+    // starting point.
+    if (auto* parameter = processor.getParameters().getParameter (parameterId))
+    {
+        attachments.push_back (std::make_unique<juce::SliderParameterAttachment> (*parameter, knob.slider));
+        if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+            knob.slider.setDoubleClickReturnValue (true, ranged->convertFrom0to1 (ranged->getDefaultValue()));
+    }
 }
 
 LeverSwitch& MainView::addLever (const juce::String& id, juce::Point<float> centre, const juce::String& caption, const juce::String& tooltip, bool glowWhenUp)

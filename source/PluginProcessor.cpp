@@ -9,7 +9,10 @@ ParagonPR7MAudioProcessor::ParagonPR7MAudioProcessor()
       parameters (*this, nullptr, "PARAMETERS", Parameters::createLayout()),
       bypass (parameters.getRawParameterValue (ParamIDs::bypass)),
       volume (parameters.getRawParameterValue (ParamIDs::volume)),
-      push (parameters.getRawParameterValue (ParamIDs::push))
+      push (parameters.getRawParameterValue (ParamIDs::push)),
+      air (parameters.getRawParameterValue (ParamIDs::air)),
+      focus (parameters.getRawParameterValue (ParamIDs::focus)),
+      body (parameters.getRawParameterValue (ParamIDs::body))
 {
     // Until prepareToPlay gives the real sample rate, report the delay at
     // the usual 48 kHz, for hosts that ask before then.
@@ -27,6 +30,8 @@ bool ParagonPR7MAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 
 void ParagonPR7MAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
+    tone.prepare (sampleRate);
+    tone.setImmediately (air->load(), focus->load(), body->load());
     compressor.prepare (sampleRate);
     compressor.setPushImmediately (push->load());
     limiter.prepare (sampleRate);
@@ -80,9 +85,14 @@ void ParagonPR7MAudioProcessor::processChunk (juce::dsp::AudioBlock<float> block
     dryBlock.copyFrom (block);
     dryDelay.process (dryBlock);
 
-    // The modules, in their order (see CLAUDE.md). Still to come: BODY /
-    // FOCUS / AIR, BASS PUNCH and TRANSIENTS (before PUSH), ANALOG and
-    // WIDTH (between PUSH and VOLUME).
+    // The modules, in their order (see CLAUDE.md). Still to come: BASS
+    // PUNCH and TRANSIENTS (between the tone and PUSH), ANALOG and WIDTH
+    // (between PUSH and VOLUME).
+    tone.setAir (air->load());
+    tone.setFocus (focus->load());
+    tone.setBody (body->load());
+    tone.process (block);
+
     compressor.setPush (push->load());
     pushReduction.push (compressor.process (block));
 

@@ -15,9 +15,17 @@ namespace ParamIDs
     inline constexpr const char* volume = "dyn.volume";
     // PUSH: the glue compressor, gentle (0) to hard (15).
     inline constexpr const char* push = "dyn.push";
+    // The tone: AIR and FOCUS -15 to +15, BODY -5 to +5.
+    inline constexpr const char* air = "tone.air";
+    inline constexpr const char* focus = "tone.focus";
+    inline constexpr const char* body = "tone.body";
 }
 
 namespace Parameters
 {
     juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
+
+    // AIR and FOCUS's scale, as printed evenly round their knobs: finer near
+    // 0. Their parameters follow it, so the pointer reads true.
+    inline constexpr float toneMarks[] = { -15.0f, -10.0f, -6.0f, -3.0f, 0.0f, 3.0f, 6.0f, 10.0f, 15.0f };
 }
