@@ -2,6 +2,18 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.6.0
+
+**VOLUME gets loud, and BASS PUNCH and TRANSIENTS work.** ANALOG and WIDTH come next.
+
+- **VOLUME, reworked after your test:** it now keeps getting louder all the way up the knob, like pushing PR7-C's OUTPUT TRIM. Before, it barely got louder past about 9.
+  - **Why it stalled:** it turned the mix up into a clean limiter, and on a dense mix (a peak every few milliseconds) the limiter just turned down harder.
+  - **Now:** the mix goes into a soft clipper that rounds the peaks off, then the limiter catches what's left. On a test mix, full turn is about 10 LU louder than 0, and peaks still stay under −1 dBTP, so it's safe for streaming.
+  - **At 0 it leaves your mix untouched.** The harder you push, the rounder it shaves. At high settings you'll hear some grit, by design.
+  - The delay grows slightly, to about 4.6 ms (PR7-M tells BeatMaker, so your track stays in time). The green LEDs show how much is shaved off the peaks.
+- **BASS PUNCH** (0–10): more low end and tighter at once. It lifts the lows up to 6 dB, and holds back on loud bass notes, so the low end comes out fuller and more even. A kick's first thump gets through before it acts.
+- **TRANSIENTS** (−10 to +10): turn right for sharper attacks, left for softer ones, up to 6 dB on the start of each hit. Held notes are left alone.
+
 ## 0.5.0
 
 **AIR, FOCUS and BODY work: the tone.** The three knobs down the left now shape the sound, first in the chain. BASS PUNCH and TRANSIENTS come next.
