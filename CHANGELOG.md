@@ -2,6 +2,27 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.8.0
+
+**Presets.** Save your own settings, and start from one of 13 factory presets. The preset system works like PR7-C's.
+
+- **The preset bar** at the top: click the name to see the list (the factory presets, then yours A to Z), or step through with the arrows either side.
+  - A ` *` after the name means you've turned a knob since loading it. Your song remembers which preset it was on.
+- **SAVE** keeps your knob settings as your own preset. It asks for a name, and asks before replacing one of yours.
+  - Your presets are files in `Documents\Paragon PR7-M\Presets`, so you can copy them to another computer.
+- **The "…" menu:** back to the default settings, delete one of your presets, or open the presets folder.
+- **A preset sets every knob, VOLUME included,** so loading one gives you a finished loudness. It leaves BYPASS and your 0 VU setting alone.
+- **13 factory presets:** our own starting points for a whole mix, not copies of anything. How loud they get depends on how loud your mix is going in. These figures assume a mix around −18 to −14 LUFS:
+  - Gentle - Just a Touch: −15 to −13 LUFS
+  - Streaming - Balanced: about −14 LUFS
+  - Acoustic - Natural, Vocal Forward, Bright and Open, Soft and Smooth: about −14 to −11 LUFS
+  - Warm Analog, Lo-Fi - Dusty: about −12 to −10.5 LUFS
+  - Pop - Polished, Hip-Hop - Heavy Low End: about −11 to −9 LUFS
+  - Rock - Driven, EDM - Loud and Wide: about −10 to −8.5 LUFS
+  - Maximum Loudness: about −7 LUFS, gritty on purpose
+- **RESET** now loads "Default", so the name reads correctly afterwards.
+- BeatMaker's own preset menu doesn't list these. Some hosts reset a plugin to its first preset when a song loads, which would wipe your settings.
+
 ## 0.7.1
 
 **VOLUME is clean first, then gets louder and grittier gradually.** In 0.6.0 and 0.7.0 VOLUME cut into the waveform from early on, so turning it up distorted long before the mix got loud.
