@@ -257,6 +257,25 @@ TEST_CASE ("The limiter lets go within about half a second of a loud hit", "[lim
     CHECK_THAT (juce::Decibels::gainToDecibels (audio.getMagnitude (0, after, 4800)), WithinAbs (-20.0, 0.1));
 }
 
+TEST_CASE ("After a loud hit the limiter lets go completely, back to bit for bit", "[limiter]")
+{
+    // It once got stuck a hair under 1 (-0.001 dB) for good: in float, the
+    // last steps of its release rounded to nothing.
+    constexpr double sampleRate = 48000.0;
+    effects::TruePeakLimiter limiter;
+    limiter.prepare (sampleRate);
+    auto audio = sine (sampleRate, 1000.0, -20.0f, 3.0);
+    for (int channel = 0; channel < 2; ++channel)   // a 10 ms hit at +6 dBFS
+        for (int i = 4800; i < 5280; ++i)
+            audio.setSample (channel, i, 2.0f);
+    const auto input = audio;
+    limit (limiter, audio);
+    const auto latency = limiter.getLatency();
+    for (int i = (int) (sampleRate * 2.5); i < audio.getNumSamples(); ++i)
+        if (! juce::exactlyEqual (audio.getSample (0, i), input.getSample (0, i - latency)))
+            FAIL ("sample " << i << " still turned down");
+}
+
 TEST_CASE ("The limiter turns both channels down together", "[limiter]")
 {
     // Loud on the left, quiet on the right: the right comes down as much.

@@ -54,7 +54,7 @@ namespace effects
             holdValues.assign ((size_t) lookAhead + 1, 1.0f);
             holdIndices.assign ((size_t) lookAhead + 1, 0);
             averaged.assign ((size_t) lookAhead, 1.0f);
-            release = 1.0f - std::exp (-1.0f / (releaseSeconds * (float) sampleRate));
+            release = 1.0 - std::exp (-1.0 / ((double) releaseSeconds * sampleRate));
             volume.reset (sampleRate, 0.05);
             reset();
         }
@@ -67,7 +67,7 @@ namespace effects
             writePosition = 0;
             holdStart = holdCount = 0;
             sampleIndex = 0;
-            envelope = 1.0f;
+            envelope = 1.0;
             std::fill (averaged.begin(), averaged.end(), 1.0f);
             averagePosition = 0;
             averageSum = (double) lookAhead;
@@ -108,12 +108,14 @@ namespace effects
                 // Hold the lowest over the look-ahead (and one more sample,
                 // since a reading covers the stretch to the next sample)...
                 const auto held = hold (needed);
-                // ...let go slowly...
-                envelope = held < envelope ? held : envelope + (held - envelope) * release;
-                if (held - envelope < 1.0e-6f)
+                // ...let go slowly (in double precision: in float, the last
+                // steps back to 1 round to nothing and it stays stuck a hair
+                // under)...
+                envelope = held < envelope ? (double) held : envelope + ((double) held - envelope) * release;
+                if ((double) held - envelope < 1.0e-6)
                     envelope = held;
                 // ...and ease it in over the look-ahead.
-                const auto gain = average (envelope);
+                const auto gain = average ((float) envelope);
                 lowestGain = juce::jmin (lowestGain, gain);
 
                 for (int channel = 0; channel < numChannels; ++channel)
@@ -176,7 +178,7 @@ namespace effects
         juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> volume { 1.0f };
         juce::int64 sampleIndex = 0;
         double averageSum = 0.0;
-        float envelope = 1.0f, release = 0.001f;
+        double envelope = 1.0, release = 0.001;
         int lookAhead = 144, latency = 159, writePosition = 0, holdStart = 0, holdCount = 0, averagePosition = 0, reducedInWindow = 0;
     };
 }
