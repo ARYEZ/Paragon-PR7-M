@@ -6,9 +6,7 @@ ParagonPR7MAudioProcessor::ParagonPR7MAudioProcessor()
     : AudioProcessor (BusesProperties()
                           .withInput ("Input", juce::AudioChannelSet::stereo(), true)
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
-      parameters (*this, nullptr, "PARAMETERS", Parameters::createLayout()),
-      inputGainDb (parameters.getRawParameterValue (ParamIDs::inputGain)),
-      outputGainDb (parameters.getRawParameterValue (ParamIDs::outputGain))
+      parameters (*this, nullptr, "PARAMETERS", Parameters::createLayout())
 {
 }
 
@@ -21,33 +19,8 @@ bool ParagonPR7MAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
     return layouts.getMainInputChannelSet() == output;
 }
 
-void ParagonPR7MAudioProcessor::prepareToPlay (double sampleRate, int)
+void ParagonPR7MAudioProcessor::prepareToPlay (double, int)
 {
-    for (auto* gain : { &inputGain, &outputGain })
-        gain->reset (sampleRate, 0.02);
-    inputGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (inputGainDb->load()));
-    outputGain.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (outputGainDb->load()));
-}
-
-namespace
-{
-    // Applies a gain that may be gliding, to every channel. At exactly 1 it
-    // does nothing, so the defaults pass audio through untouched.
-    void applyGain (juce::AudioBuffer<float>& buffer, juce::SmoothedValue<float>& gain, int numSamples) noexcept
-    {
-        if (! gain.isSmoothing())
-        {
-            if (! juce::approximatelyEqual (gain.getTargetValue(), 1.0f))
-                buffer.applyGain (0, numSamples, gain.getTargetValue());
-            return;
-        }
-        for (int i = 0; i < numSamples; ++i)
-        {
-            const auto value = gain.getNextValue();
-            for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
-                buffer.getWritePointer (channel)[i] *= value;
-        }
-    }
 }
 
 void ParagonPR7MAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
@@ -57,14 +30,10 @@ void ParagonPR7MAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     for (auto channel = getTotalNumInputChannels(); channel < getTotalNumOutputChannels(); ++channel)
         buffer.clear (channel, 0, numSamples);
 
-    inputGain.setTargetValue (juce::Decibels::decibelsToGain (inputGainDb->load()));
-    applyGain (buffer, inputGain, numSamples);
     pushMeters (inputMeters, buffer, numSamples);
 
-    // The mastering modules will go here.
+    // The mastering modules will go here, in their order (see CLAUDE.md).
 
-    outputGain.setTargetValue (juce::Decibels::decibelsToGain (outputGainDb->load()));
-    applyGain (buffer, outputGain, numSamples);
     pushMeters (outputMeters, buffer, numSamples);
 }
 

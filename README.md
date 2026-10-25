@@ -4,7 +4,7 @@
 
 A **mastering** VST3 plugin, part of the Paragon PR7 family (PR7-G guitar, PR7-B bass, PR7-V vocals, PR7-C channel strip). Built with [JUCE](https://juce.com).
 
-*Early days: so far only the family look, INPUT, OUTPUT and the meters. The mastering modules are built one at a time from the concept design; see [CLAUDE.md](CLAUDE.md) for the plan.*
+*Early days: the panel is drawn, and the sound is built one module at a time; see [CLAUDE.md](CLAUDE.md) for the plan.*
 
 ## Building
 

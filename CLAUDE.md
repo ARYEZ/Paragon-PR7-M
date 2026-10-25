@@ -9,7 +9,7 @@
 | PR7-V (vocals) | `ARYEZ/Paragon-PR7-V` |
 | PR7-C (channel strip) | `ARYEZ/Paragon-PR7-C` |
 
-It was **seeded lean from PR7-C**: the build, test and release setup, the family look (finishes, knobs, buttons, meters, black menus), and a stereo processor with only INPUT, OUTPUT and the meters. **Nothing is designed yet.** The modules come from the owner's concept design and references, one at a time (see "Next").
+It was **seeded lean from PR7-C**: the build, test and release setup, the family look (finishes, knobs, buttons, meters, black menus), and a stereo processor that passes audio through. The panel (step 1's layout) is drawn; the sound is built one module at a time (see "The design" and "Build order").
 
 ## Why a separate plugin, not part of PR7-C
 
@@ -18,18 +18,57 @@ PR7-C runs on many tracks, so it adds no delay and stays light. Mastering runs o
 ## What's here
 
 - **The plugin:** true stereo (stereo in/out, or mono in/out). Identity: `Paragon PR7-M`, plugin code `Pr7m`, bundle `com.paragon.paragonpr7m`, maker code `Prgn`, VST3 category Fx / Mastering.
-  - Parameters: `inputGain`, `outputGain` (−24 to +12 dB, 0 dB at the top of the knob).
-  - Input and output peak meters (`LevelMeterSource`).
-- **`source/ui/MainView`:** a **placeholder** panel on a fixed 1448 × 1086 canvas (PR7-C's size): the header (the PR7-M mark, "MASTERING", the finish gear), the body frame, an empty plate where the modules will go, and IN / OUT (INPUT, OUTPUT, four meters). When the concept arrives, **resize the canvas to the concept image's exact size** (so coordinates read straight off it) and build the panel to match.
-- **Carried over from PR7-C** (see its CLAUDE.md for the history): `ParagonLookAndFeel` (incl. black menus and dialogs), `Finish` (Pearl White / White + Neon / Pearl Black; settings file "Paragon PR7-M"; Pearl Black is PR7-G's face gradient), `Controls` (`Knob`, `Led`, `LeverSwitch`, `RoundButton`, `GainReductionMeter`), `LevelMeter` (orange-to-pink LEDs), `LedDisplay`, `Logo` (now "-M"), `dsp/EffectUtils.h` (`BypassFade`), `dsp/Biquad.h`.
+  - No parameters yet: each step adds its own. Input and output peak sources (`LevelMeterSource`) feed the meters.
+- **`source/ui/MainView`:** a fixed **1448 × 640** canvas (the header, then the faceplate `MainView::faceplate()`), scaled by the editor. Every control of the agreed layout is placed, **inert** until its step: tooltips say which step brings it. Controls are registered by ID (`tone.air`, `tone.focus`, `tone.body`, `dyn.push`, `dyn.volume`, `panel.reset`, `panel.bypass`, `stereo.width`, `dyn.transients`, `colour.analog`, `dyn.bassPunch`).
+  - **`VuMeter`**: cream face, −20 to +3 VU on a real VU's voltage spacing, red from 0 up, needle, glass. Shows the **output** (owner decision). It only draws so far (`setNeedle`); VU ballistics come in step 1.
+  - **PUSH and VOLUME's green LED rings** (`setGainReduction`): 12 LEDs, 1 per dB, on the knob's dark rim along the top end of its travel, drawn over the knob (`paintOverChildren`).
+  - `PARAGON_SNAPSHOT_DEMO=1` sets the needle and the LEDs for a render.
+- **Carried over from PR7-C** (see its CLAUDE.md for the history): `ParagonLookAndFeel` (incl. black menus and dialogs), `Finish` (Pearl White / White + Neon / Pearl Black; settings file "Paragon PR7-M"; Pearl Black is PR7-G's face gradient), `Controls` (`Knob`, `Led`, `LeverSwitch`, `RoundButton`, `GainReductionMeter`), `LevelMeter` (orange-to-pink LEDs; not on the panel now), `LedDisplay`, `Logo` (now "-M"), `dsp/EffectUtils.h` (`BypassFade`), `dsp/Biquad.h`.
 - **`reference/pr7c/dsp/`:** PR7-C's EQ, compressor, limiter, saturation, console colour and stereo tools. **Not compiled.** Starting points to copy into `source/dsp/` and adapt when a module needs them (the limiter would want look-ahead here).
 
-## Next (waiting on the owner)
+## The design (agreed with the owner)
 
-1. **A concept image** (`docs/concept.png`).
-2. **References** for the feel they want (they mentioned a commercial all-in-one mastering plugin with an assistant). Describe everything in our own words.
-3. **The module list and build order**, agreed with the owner, as PR7-C's was.
-4. **Metering calibration:** `LevelMeter` still uses PR7-C's console calibration (0 on the scale = −20 dBFS). Mastering usually wants dBFS, plus LUFS and true peak. Decide with the owner.
+The owner wants PR7-M to work like a well-known all-in-one mastering processor: a few big, musical knobs instead of technical ones. They supplied its front panel and its manual's one-page description. **We take the idea, the layout and the plain control words; the sound is our own design** (we can't measure or hear the original), and its name, maker and look are never used. The panel is in the Paragon look, not the reference's orange faceplate.
+
+**The layout** follows the reference: AIR, FOCUS and BODY down the left; big **PUSH** and **VOLUME** either side of the VU meter, with **RESET** and **BYPASS** levers above them; **WIDTH** under the meter; **TRANSIENTS**, **ANALOG** and **BASS PUNCH** down the right; "MASTERING PROCESSOR" and the PR7-M mark low on the plate.
+
+**The controls** (the reference manual's intent in our words, then our plan; ranges from its panel):
+
+| Control | Range | Intent | Our plan (to design and test) |
+|---|---|---|---|
+| **AIR** | −15 to +15 | Boost or cut the highs, gently | A soft high shelf around 10–16 kHz |
+| **FOCUS** | −15 to +15 | The intelligibility of the mids | A broad presence band around 1–4 kHz |
+| **BODY** | −5 to +5 | The amount of lows without upsetting the overall balance | A balanced tilt in the low mids (around 150–300 Hz), level-compensated |
+| **BASS PUNCH** | 0 to 10 | Low-end boost and tightness at once | A low boost plus a low-band compressor (below ~120 Hz) on one knob |
+| **TRANSIENTS** | −10 to +10 | Enhance or smooth the attacks | A transient shaper |
+| **PUSH** | 0 to 15 | A macro: all the compressor's settings, gentle to hard | A glue compressor whose threshold, ratio, attack and release move together along one curve; the green LEDs show its gain reduction |
+| **ANALOG** | 0 to 10 | Harmonics for dimension and colour | Saturation (from PR7-C), gentler for a full mix |
+| **WIDTH** | −5 to +5 | The stereo image | Mid/side width, the bass always kept mono |
+| **VOLUME** | 0 to 15 | Louder without artifacts | Gain into a look-ahead **true-peak limiter** (latency reported); the green LEDs show its gain reduction |
+| **VU** | −20 to +3 | Output level | The output, with VU ballistics; LUFS and true peak to add |
+| **BYPASS** | lever | Compare | Bypass at **matched loudness** |
+| **RESET** | lever | Start over | Every knob back to its starting point |
+
+**Signal chain:** input → BODY / FOCUS / AIR → BASS PUNCH → TRANSIENTS → PUSH → ANALOG → WIDTH → VOLUME (limiter) → output and meters.
+
+**Later:** an assistant that listens to the song and sets the knobs (owner: "assistant later").
+
+## Build order
+
+One step at a time, each built, tested, rendered and shown to the owner first.
+
+1. **The panel (drawn, awaiting the owner's approval) and the metering:** the VU needle's movement, LUFS and true-peak readouts, BYPASS (matched loudness) and RESET.
+2. **VOLUME:** the look-ahead true-peak limiter.
+3. **PUSH:** the glue compressor macro.
+4. **BODY, FOCUS, AIR.**
+5. **BASS PUNCH, TRANSIENTS.**
+6. **ANALOG, WIDTH.**
+7. **Presets.**
+8. **The assistant** (later).
+
+## Open questions
+
+- **Metering:** `LevelMeter` uses PR7-C's console calibration (0 = −20 dBFS). The VU's 0 VU reference level (e.g. −18 dBFS) and where LUFS / true peak appear on the panel are to be agreed in step 1.
 
 ## Names
 

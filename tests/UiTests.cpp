@@ -43,17 +43,18 @@ TEST_CASE ("Every control has a tooltip", "[ui]")
     }
 }
 
-TEST_CASE ("The INPUT and OUTPUT knobs work their parameters", "[ui]")
+TEST_CASE ("The panel has every control of the agreed layout, on the faceplate", "[ui]")
 {
     ParagonPR7MAudioProcessor processor;
     std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
     auto& view = viewOf (*editor);
-    for (const auto& [controlId, parameterId] : { std::pair ("output.input", ParamIDs::inputGain), { "output.output", ParamIDs::outputGain } })
+    for (const auto* id : { "tone.air", "tone.focus", "tone.body", "dyn.push", "dyn.volume", "panel.reset", "panel.bypass",
+                            "stereo.width", "dyn.transients", "colour.analog", "dyn.bassPunch" })
     {
-        INFO (controlId);
-        auto* knob = dynamic_cast<Knob*> (view.findControl (controlId));
-        REQUIRE (knob != nullptr);
-        knob->slider.setValue (-9.0, juce::sendNotificationSync);
-        CHECK_THAT (processor.getParameters().getRawParameterValue (parameterId)->load(), WithinAbs (-9.0, 1e-4));
+        INFO (id);
+        auto* control = view.findControl (id);
+        REQUIRE (control != nullptr);
+        CHECK (MainView::faceplate().contains (control->getBounds().toFloat()));
     }
+    CHECK (MainView::faceplate().contains (view.getVuMeter().getBounds().toFloat()));
 }

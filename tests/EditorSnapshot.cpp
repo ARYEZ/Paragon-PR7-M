@@ -9,7 +9,8 @@
 //   PARAGON_SNAPSHOT=editor.png ./ParagonPR7MTests "[snapshot]"
 // PARAGON_SNAPSHOT_WIDTH sets the window width (default: the canvas's;
 // twice that for a 2x render). PARAGON_SNAPSHOT_FINISH=black or =neon picks
-// the finish.
+// the finish. PARAGON_SNAPSHOT_DEMO=1 sets the VU needle and the PUSH and
+// VOLUME LEDs, to show them.
 TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
 {
     const auto path = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT", "editor.png");
@@ -36,6 +37,13 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         juce::Timer::callPendingTimersSynchronously();
         juce::Thread::sleep (40);
     }
+
+    if (juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_DEMO", {}) == "1")
+        if (auto* view = dynamic_cast<MainView*> (editor->getChildComponent (0)))
+        {
+            view->getVuMeter().setNeedle (-3.0f);
+            view->setGainReduction (3.0f, 5.0f);
+        }
 
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
     juce::File (juce::File::getCurrentWorkingDirectory().getChildFile (path)).deleteFile();

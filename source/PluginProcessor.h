@@ -6,8 +6,8 @@
 #include "Parameters.h"
 
 // The mastering processor. True stereo (stereo in, stereo out), or mono in,
-// mono out. So far only INPUT, OUTPUT and the meters: the modules are built
-// one at a time once the concept design is in (see CLAUDE.md).
+// mono out. So far it passes the audio through and measures it for the
+// meters: the modules are built one at a time (see CLAUDE.md).
 class ParagonPR7MAudioProcessor final : public juce::AudioProcessor
 {
 public:
@@ -48,11 +48,6 @@ private:
     void pushMeters (std::array<LevelMeterSource, 2>&, const juce::AudioBuffer<float>&, int numSamples) noexcept;
 
     juce::AudioProcessorValueTreeState parameters;
-    std::atomic<float>* inputGainDb = nullptr;
-    std::atomic<float>* outputGainDb = nullptr;
-
-    // Gain changes glide over 20 ms, so nothing clicks.
-    juce::SmoothedValue<float> inputGain { 1.0f }, outputGain { 1.0f };
     std::array<LevelMeterSource, 2> inputMeters, outputMeters;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ParagonPR7MAudioProcessor)

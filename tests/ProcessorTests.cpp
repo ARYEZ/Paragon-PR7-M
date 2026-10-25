@@ -1,10 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "Parameters.h"
 #include "PluginProcessor.h"
-
-using Catch::Matchers::WithinAbs;
 
 namespace
 {
@@ -20,13 +17,6 @@ namespace
                 buffer.setSample (channel, i, (channel == 0 ? 0.5f : 0.25f)
                                                   * std::sin (juce::MathConstants<float>::twoPi * (channel == 0 ? 440.0f : 1000.0f) * (float) i / (float) sampleRate));
         return buffer;
-    }
-
-    void set (ParagonPR7MAudioProcessor& processor, const char* id, float value)
-    {
-        auto* parameter = processor.getParameters().getParameter (id);
-        REQUIRE (parameter != nullptr);
-        parameter->setValueNotifyingHost (parameter->convertTo0to1 (value));
     }
 
     void process (ParagonPR7MAudioProcessor& processor, juce::AudioBuffer<float>& buffer)
@@ -76,26 +66,6 @@ TEST_CASE ("Defaults that should be 0 read back as exactly 0", "[processor]")
     }
 }
 
-TEST_CASE ("INPUT and OUTPUT set the level", "[processor]")
-{
-    for (const auto* id : { ParamIDs::inputGain, ParamIDs::outputGain })
-    {
-        DYNAMIC_SECTION (id)
-        {
-            ParagonPR7MAudioProcessor processor;
-            processor.prepareToPlay (sampleRate, blockSize);
-            set (processor, id, -6.0f);
-            const auto input = stereoTone (9600);
-            auto output = input;
-            process (processor, output);
-            // After the 20 ms glide.
-            for (int channel = 0; channel < 2; ++channel)
-                CHECK_THAT (juce::Decibels::gainToDecibels (output.getRMSLevel (channel, 4800, 4800) / input.getRMSLevel (channel, 4800, 4800)),
-                            WithinAbs (-6.0, 0.01));
-        }
-    }
-}
-
 TEST_CASE ("Mono and stereo tracks are supported, mismatched layouts aren't", "[processor]")
 {
     ParagonPR7MAudioProcessor processor;
@@ -116,19 +86,4 @@ TEST_CASE ("Mono and stereo tracks are supported, mismatched layouts aren't", "[
     auto output = input;
     process (processor, output);
     CHECK (identical (input, output));
-}
-
-TEST_CASE ("Settings are saved with the project and restored", "[processor]")
-{
-    juce::MemoryBlock saved;
-    {
-        ParagonPR7MAudioProcessor processor;
-        set (processor, ParamIDs::inputGain, 3.5f);
-        set (processor, ParamIDs::outputGain, -7.0f);
-        processor.getStateInformation (saved);
-    }
-    ParagonPR7MAudioProcessor restored;
-    restored.setStateInformation (saved.getData(), (int) saved.getSize());
-    CHECK_THAT (restored.getParameters().getRawParameterValue (ParamIDs::inputGain)->load(), WithinAbs (3.5, 1e-4));
-    CHECK_THAT (restored.getParameters().getRawParameterValue (ParamIDs::outputGain)->load(), WithinAbs (-7.0, 1e-4));
 }
