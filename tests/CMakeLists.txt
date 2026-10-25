@@ -14,6 +14,7 @@ add_executable(ParagonPR7MTests
     ToneTests.cpp
     PunchTransientTests.cpp
     VolumeTests.cpp
+    AnalogWidthTests.cpp
     EditorSnapshot.cpp)
 
 # Link the plugin's shared code (processor, editor, JUCE modules) so the

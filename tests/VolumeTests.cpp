@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include "PluginProcessor.h"
+#include "dsp/Analog.h"
 #include "dsp/Clipper.h"
 #include "dsp/Limiter.h"
 #include "dsp/Loudness.h"
@@ -221,12 +222,15 @@ TEST_CASE ("Turning VOLUME doesn't click", "[volume]")
     CHECK (biggestStep < 0.01f);
 }
 
-TEST_CASE ("The processor reports the clipper's delay with the limiter's, from the start", "[processor][volume]")
+TEST_CASE ("The processor reports ANALOG's, the clipper's and the limiter's delay, from the start", "[processor][volume]")
 {
+    effects::AnalogColour analog;
+    analog.prepare (sampleRate, blockSize);
     effects::VolumeClipper clipper;
     clipper.prepare (sampleRate, blockSize);
     REQUIRE (clipper.getLatency() > 0);
-    const auto expected = clipper.getLatency() + effects::TruePeakLimiter::latencyFor (sampleRate);
+    REQUIRE (analog.getLatency() > 0);
+    const auto expected = analog.getLatency() + clipper.getLatency() + effects::TruePeakLimiter::latencyFor (sampleRate);
 
     ParagonPR7MAudioProcessor processor;
     CHECK (processor.getLatencySamples() == expected);   // before prepareToPlay: the 48 kHz guess

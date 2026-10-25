@@ -17,8 +17,8 @@
 // ANALOG and BASS PUNCH down the right. PUSH and VOLUME have a ring of green
 // LEDs that light with their gain reduction.
 //
-// Controls are registered by ID ("tone.air", "dyn.push"...). Until their
-// step is built they're inert, and their tooltips say which step brings them.
+// Controls are registered by ID ("tone.air", "dyn.push"...), each attached
+// to its parameter.
 //
 // The VU meter shows the output with its 0 VU at the level chosen in the
 // settings menu, and the LED readout under it ("meter.loudness") the

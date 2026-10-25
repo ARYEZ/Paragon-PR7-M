@@ -4,6 +4,7 @@
 
 #include "LevelMeterSource.h"
 #include "Parameters.h"
+#include "dsp/Analog.h"
 #include "dsp/BassPunch.h"
 #include "dsp/Clipper.h"
 #include "dsp/EffectUtils.h"
@@ -15,13 +16,14 @@
 #include "dsp/TransientShaper.h"
 #include "dsp/TruePeak.h"
 #include "dsp/VuBallistics.h"
+#include "dsp/Width.h"
 
 // The mastering processor. True stereo (stereo in, stereo out), or mono in,
-// mono out. The modules are built one at a time (see CLAUDE.md); so far
-// BODY / FOCUS / AIR (the tone), BASS PUNCH, TRANSIENTS, PUSH (the glue
-// compressor) and VOLUME (gain into a soft clipper and a true-peak limiter
-// at the end of the chain, which delay the audio by a few milliseconds,
-// reported to the host). BYPASS is at matched
+// mono out. The modules, in their order (see CLAUDE.md): BODY / FOCUS /
+// AIR (the tone), BASS PUNCH, TRANSIENTS, PUSH (the glue compressor),
+// ANALOG, WIDTH, and VOLUME (gain into a soft clipper and a true-peak
+// limiter). ANALOG and VOLUME delay the audio by a few milliseconds, the
+// same at any setting, reported to the host. BYPASS is at matched
 // loudness, and the output is metered: the VU needle, short-term loudness
 // and true peak.
 class ParagonPR7MAudioProcessor final : public juce::AudioProcessor
@@ -103,12 +105,16 @@ private:
     std::atomic<float>* body = nullptr;
     std::atomic<float>* bassPunch = nullptr;
     std::atomic<float>* transients = nullptr;
+    std::atomic<float>* analog = nullptr;
+    std::atomic<float>* width = nullptr;
     std::array<LevelMeterSource, 2> inputMeters, outputMeters;
 
     effects::ToneShaper tone;
     effects::BassPunch punch;
     effects::TransientShaper transientShaper;
     effects::GlueCompressor compressor;
+    effects::AnalogColour analogColour;
+    effects::StereoWidth stereoWidth;
     effects::VolumeClipper clipper;
     effects::TruePeakLimiter limiter;
     GainReductionSource pushReduction, volumeReduction;

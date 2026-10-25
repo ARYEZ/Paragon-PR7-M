@@ -22,6 +22,9 @@ namespace ParamIDs
     // BASS PUNCH 0 to 10; TRANSIENTS -10 (softer attacks) to +10 (sharper).
     inline constexpr const char* bassPunch = "dyn.bassPunch";
     inline constexpr const char* transients = "dyn.transients";
+    // ANALOG 0 to 10; WIDTH -5 (mono) to +5 (twice as wide).
+    inline constexpr const char* analog = "colour.analog";
+    inline constexpr const char* width = "stereo.width";
 }
 
 namespace Parameters

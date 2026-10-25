@@ -14,12 +14,15 @@ ParagonPR7MAudioProcessor::ParagonPR7MAudioProcessor()
       focus (parameters.getRawParameterValue (ParamIDs::focus)),
       body (parameters.getRawParameterValue (ParamIDs::body)),
       bassPunch (parameters.getRawParameterValue (ParamIDs::bassPunch)),
-      transients (parameters.getRawParameterValue (ParamIDs::transients))
+      transients (parameters.getRawParameterValue (ParamIDs::transients)),
+      analog (parameters.getRawParameterValue (ParamIDs::analog)),
+      width (parameters.getRawParameterValue (ParamIDs::width))
 {
     // Until prepareToPlay gives the real sample rate, report the delay at
     // the usual 48 kHz, for hosts that ask before then.
+    analogColour.prepare (48000.0, 512);
     clipper.prepare (48000.0, 512);
-    setLatencySamples (clipper.getLatency() + effects::TruePeakLimiter::latencyFor (48000.0));
+    setLatencySamples (analogColour.getLatency() + clipper.getLatency() + effects::TruePeakLimiter::latencyFor (48000.0));
 }
 
 bool ParagonPR7MAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -41,10 +44,14 @@ void ParagonPR7MAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     transientShaper.setAmountImmediately (transients->load());
     compressor.prepare (sampleRate);
     compressor.setPushImmediately (push->load());
+    analogColour.prepare (sampleRate, samplesPerBlock);
+    analogColour.setAmountImmediately (analog->load());
+    stereoWidth.prepare (sampleRate);
+    stereoWidth.setWidthImmediately (width->load());
     clipper.prepare (sampleRate, samplesPerBlock);
     clipper.setVolumeImmediately (volume->load());
     limiter.prepare (sampleRate);   // its own gain stays at 0 dB: VOLUME's gain is the clipper's
-    const auto latency = clipper.getLatency() + limiter.getLatency();
+    const auto latency = analogColour.getLatency() + clipper.getLatency() + limiter.getLatency();
     setLatencySamples (latency);
 
     dry.setSize (metering::maxChannels, juce::jmax (1, samplesPerBlock));
@@ -94,8 +101,7 @@ void ParagonPR7MAudioProcessor::processChunk (juce::dsp::AudioBlock<float> block
     dryBlock.copyFrom (block);
     dryDelay.process (dryBlock);
 
-    // The modules, in their order (see CLAUDE.md). Still to come: ANALOG
-    // and WIDTH (between PUSH and VOLUME).
+    // The modules, in their order (see CLAUDE.md).
     tone.setAir (air->load());
     tone.setFocus (focus->load());
     tone.setBody (body->load());
@@ -109,6 +115,12 @@ void ParagonPR7MAudioProcessor::processChunk (juce::dsp::AudioBlock<float> block
 
     compressor.setPush (push->load());
     pushReduction.push (compressor.process (block));
+
+    analogColour.setAmount (analog->load());
+    analogColour.process (block);
+
+    stereoWidth.setWidth (width->load());
+    stereoWidth.process (block);
 
     // VOLUME: the gain and the clipper, then the limiter. Its LEDs show
     // both: what the clipper shaves off and what the limiter turns down.

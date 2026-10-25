@@ -6,13 +6,6 @@
 
 namespace
 {
-    // The build steps (see CLAUDE.md), for the tooltips of controls that
-    // don't work yet.
-    juce::String later (const juce::String& what, int step)
-    {
-        return what + "\n(Not working yet: it arrives with step " + juce::String (step) + ".)";
-    }
-
     const juce::Rectangle<float> body { 13.0f, 71.0f, 1422.0f, 556.0f };
 
     // "PARAGON PR7-M" with "MASTERING" spaced out under it.
@@ -136,16 +129,20 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
     loudness.onClear = [this] { processor.resetTruePeak(); };
     addAndMakeVisible (loudness);
     controls["meter.loudness"] = &loudness;
-    addKnob ("stereo.width", P (724, 480), 36, numbers (-5, 5, 1, true), "WIDTH",
-             later ("WIDTH: narrower or wider stereo. The bass always stays in the middle.", 6));
+    attach (addKnob ("stereo.width", P (724, 480), 36, numbers (-5, 5, 1, true), "WIDTH",
+                     "WIDTH: narrower (left, mono at -5) or wider (right, twice as wide at +5) stereo. "
+                     "The bass always stays in the middle, and the mix sounds the same in mono."),
+            ParamIDs::width);
 
     // Down the right: the character.
     attach (addKnob ("dyn.transients", P (1160, 170), 36, numbers (-10, 10, 2, true), "TRANSIENTS",
                      "TRANSIENTS: sharper attacks (right) or softer ones (left), up to 6 dB on the start of each hit. "
                      "What sustains is left alone."),
             ParamIDs::transients);
-    addKnob ("colour.analog", P (1305, 326), 38, numbers (0, 10, 1, false), "ANALOG",
-             later ("ANALOG: a touch of harmonics, for dimension and colour", 6));
+    attach (addKnob ("colour.analog", P (1305, 326), 38, numbers (0, 10, 1, false), "ANALOG",
+                     "ANALOG: harmonics for dimension and colour, mostly warm (2nd harmonic) with a little edge (3rd). "
+                     "It changes the colour, not the loudness."),
+            ParamIDs::analog);
     attach (addKnob ("dyn.bassPunch", P (1160, 480), 36, numbers (0, 10, 1, false), "BASS PUNCH",
                      "BASS PUNCH: more low end, and tighter, at the same time. Lifts the lows up to 6 dB, "
                      "and takes the lift back on loud bass notes, so the low end comes out fuller and more even."),
