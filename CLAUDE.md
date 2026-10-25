@@ -135,7 +135,7 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 
 ## Releases
 
-- **Version 0.0.0 is never released** (CI skips it). 0.1.0 (a panel preview, knobs inert) was released so the owner could see the panel in BeatMaker; 0.2.0 (step 1: the metering, BYPASS and RESET; knobs still inert) for the owner to try them; 0.3.0 (step 2: VOLUME, the limiter); 0.4.0 (step 3: PUSH, and the limiter's release fix); 0.5.0 (step 4: BODY, FOCUS, AIR); 0.6.0 (step 5: BASS PUNCH, TRANSIENTS, and VOLUME reworked with the clipper); 0.7.0 (step 6: ANALOG, WIDTH; every knob works).
+- **Version 0.0.0 is never released** (CI skips it). 0.1.0 (a panel preview, knobs inert) was released so the owner could see the panel in BeatMaker; 0.2.0 (step 1: the metering, BYPASS and RESET; knobs still inert) for the owner to try them; 0.3.0 (step 2: VOLUME, the limiter); 0.4.0 (step 3: PUSH, and the limiter's release fix); 0.5.0 (step 4: BODY, FOCUS, AIR); 0.6.0 (step 5: BASS PUNCH, TRANSIENTS, and VOLUME reworked with the clipper); 0.7.0 (step 6: ANALOG, WIDTH; every knob works); 0.7.1 (VOLUME clean first, the clipper only from about 10).
 - To release: bump `project(ParagonPR7M VERSION x.y.z)` in CMakeLists.txt, add a matching `## x.y.z` section at the top of CHANGELOG.md, and push. CI builds Windows, macOS and Linux, runs the tests and pluginval, and publishes a GitHub Release with the three zips, using that changelog section as the notes. About 15 minutes later, check all three zips are there.
 - The owner installs from GitHub Releases on **Windows** and works in **BeatMaker**.
 

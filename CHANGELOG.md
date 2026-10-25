@@ -2,6 +2,15 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.7.1
+
+**VOLUME is clean first, then gets louder and grittier gradually.** In 0.6.0 and 0.7.0 VOLUME cut into the waveform from early on, so turning it up distorted long before the mix got loud.
+
+- **Up to about 9, VOLUME is clean:** only the limiter works, and it now lets go quickly after short peaks (slower after long, hard limiting), so a mix gets as loud as limiting can make it without changing the sound. On a dense test mix: about −8.7 LUFS at 9.
+- **From 10 to 15, it adds loudness and edge a little at a time:** about −8.2 LUFS at 10, −7.5 at 12, −5.9 at 15. 15 is pushed hard on purpose.
+- Measured distortion on that test mix: 0.7.0 was already as distorted at VOLUME 6 as 0.7.1 is at 10.
+- **Why not louder and clean:** every limiter design we tried stopped at about −8.7 LUFS on a dense mix. Anything louder has to clip the peaks, which you hear as distortion.
+
 ## 0.7.0
 
 **Every knob works: ANALOG and WIDTH.** The whole chain is in place. Presets come next.
