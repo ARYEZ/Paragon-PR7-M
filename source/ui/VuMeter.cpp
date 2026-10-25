@@ -25,6 +25,15 @@ void VuMeter::setNeedle (float vu)
     }
 }
 
+void VuMeter::setReference (int dBFS)
+{
+    if (dBFS != reference)
+    {
+        reference = dBFS;
+        repaint();
+    }
+}
+
 void VuMeter::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat();
@@ -83,6 +92,11 @@ void VuMeter::paint (juce::Graphics& g)
                 juce::Justification::centred, false);
     g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
     g.drawText ("O U T P U T", juce::Rectangle<float> (100.0f, 14.0f).withCentre ({ face.getRight() - face.getWidth() * 0.18f, face.getBottom() - face.getHeight() * 0.2f }),
+                juce::Justification::centred, false);
+    g.setFont (juce::FontOptions (8.5f, juce::Font::bold));
+    g.setColour (ink.withAlpha (0.75f));
+    g.drawText ("0 VU = " + juce::String (reference) + " dBFS",
+                juce::Rectangle<float> (100.0f, 12.0f).withCentre ({ face.getRight() - face.getWidth() * 0.18f, face.getBottom() - face.getHeight() * 0.2f + 13.0f }),
                 juce::Justification::centred, false);
 
     // The needle, and the dark hood over its pivot.

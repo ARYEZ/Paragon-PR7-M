@@ -54,6 +54,7 @@ target_sources(ParagonPR7M
         source/ui/LevelMeter.cpp
         source/ui/Logo.cpp
         source/ui/LedDisplay.cpp
+        source/ui/LoudnessDisplay.cpp
         source/ui/ParagonLookAndFeel.cpp
         source/ui/Finish.cpp)
 

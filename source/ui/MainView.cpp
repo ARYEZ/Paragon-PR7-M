@@ -102,10 +102,34 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
              later ("PUSH: the compressor, from gentle to hard, on one knob", 3));
     addKnob ("dyn.volume", P (978, 346), 74, numbers (0, 15, 1.5f, false), "VOLUME",
              later ("VOLUME: louder, without clipping or harshness (the final limiter)", 2));
-    addLever ("panel.reset", P (480, 158), "RESET", later ("RESET: every knob back to its starting point", 1));
-    addLever ("panel.bypass", P (968, 158), "BYPASS", later ("BYPASS: hear the mix without the processing, at the same loudness, to compare fairly", 1));
+    auto& reset = addLever ("panel.reset", P (480, 158), "RESET", "RESET: flick it up to set every knob back to its starting point");
+    reset.onChange = [this, &reset]
+    {
+        if (reset.getPosition() != 0)
+            return;
+        processor.resetKnobs();
+        // Momentary: it springs back down.
+        juce::Timer::callAfterDelay (250, [lever = juce::Component::SafePointer<LeverSwitch> (&reset)]
+        {
+            if (lever != nullptr)
+                lever->setPosition (1);
+        });
+    };
+    auto& bypass = addLever ("panel.bypass", P (968, 158), "BYPASS",
+                             "BYPASS (up): hear the mix without the processing, turned to the same loudness, to compare fairly", true);
+    if (auto* parameter = processor.getParameters().getParameter (ParamIDs::bypass))
+    {
+        bypassAttachment = std::make_unique<juce::ParameterAttachment> (*parameter, [&bypass] (float value) { bypass.setPosition (value >= 0.5f ? 0 : 1); });
+        bypass.onChange = [this, &bypass] { bypassAttachment->setValueAsCompleteGesture (bypass.getPosition() == 0 ? 1.0f : 0.0f); };
+        bypassAttachment->sendInitialUpdate();
+    }
     vu.setBounds (juce::Rectangle<int> (264, 200).withCentre ({ 724, 236 }));
+    vu.setReference (processor.getVuReference());
     addAndMakeVisible (vu);
+    loudness.setBounds (juce::Rectangle<int> (264, 46).withCentre ({ 724, 366 }));
+    loudness.onClear = [this] { processor.resetTruePeak(); };
+    addAndMakeVisible (loudness);
+    controls["meter.loudness"] = &loudness;
     addKnob ("stereo.width", P (724, 480), 36, numbers (-5, 5, 1, true), "WIDTH",
              later ("WIDTH: narrower or wider stereo. The bass always stays in the middle.", 6));
 
@@ -123,7 +147,7 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
     settings->getProperties().set (ParagonLookAndFeel::consoleButtonProperty, true);
     settings->getProperties().set (ParagonLookAndFeel::iconProperty, "gear");
     settings->getProperties().set (ParagonLookAndFeel::bareProperty, true);
-    settings->setTooltip ("Settings: the panel's finish");
+    settings->setTooltip ("Settings: the panel's finish, and the level the VU meter's 0 VU stands for");
     settings->setBounds (1382, 20, 40, 40);
     settings->onClick = [this] { showSettingsMenu(); };
     addAndMakeVisible (settings);
@@ -131,6 +155,7 @@ MainView::MainView (ParagonPR7MAudioProcessor& processorToShow) : processor (pro
 
     grain = Finish::makeSatinGrain (width, height, 7);
     Finish::changes().addChangeListener (this);
+    startTimerHz (60);
 }
 
 MainView::~MainView()
@@ -151,9 +176,9 @@ Knob& MainView::addKnob (const juce::String& id, juce::Point<float> centre, floa
     return *knob;
 }
 
-LeverSwitch& MainView::addLever (const juce::String& id, juce::Point<float> centre, const juce::String& caption, const juce::String& tooltip)
+LeverSwitch& MainView::addLever (const juce::String& id, juce::Point<float> centre, const juce::String& caption, const juce::String& tooltip, bool glowWhenUp)
 {
-    auto* lever = new LeverSwitch (2, 1);
+    auto* lever = new LeverSwitch (2, 1, glowWhenUp);
     ownedControls.add (lever);
     lever->setTooltip (tooltip);
     lever->setBounds (juce::Rectangle<int> (24, 54).withCentre (centre.toInt()));
@@ -186,6 +211,16 @@ void MainView::showSettingsMenu()
     // In the order they're best read, not the order they're saved in.
     for (const auto type : { Finish::Type::pearlWhite, Finish::Type::pearlWhiteNeon, Finish::Type::pearlBlack })
         menu.addItem (Finish::names[(int) type], true, Finish::get() == type, [type] { Finish::set (type); });
+    // Saved with the project, unlike the finish.
+    menu.addSectionHeader ("VU meter: 0 VU is");
+    for (const auto reference : ParagonPR7MAudioProcessor::vuReferenceChoices)
+        menu.addItem (juce::String (reference) + " dBFS" + (reference == ParagonPR7MAudioProcessor::defaultVuReference ? " (streaming loudness)" : ""),
+                      true, processor.getVuReference() == reference,
+                      [this, reference]
+                      {
+                          processor.setVuReference (reference);
+                          vu.setReference (reference);
+                      });
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (findControl ("settings")));
 }
 
@@ -193,6 +228,23 @@ void MainView::changeListenerCallback (juce::ChangeBroadcaster*)
 {
     grain = Finish::makeSatinGrain (width, height, 7);
     repaint();
+}
+
+void MainView::updateMeters()
+{
+    // The needle follows the processor's own VU ballistics. If the host
+    // stops sending audio, let it fall back as a real one would.
+    const auto blocks = processor.getMeteredBlocks();
+    ticksWithoutAudio = blocks != lastMeteredBlocks ? 0 : ticksWithoutAudio + 1;
+    lastMeteredBlocks = blocks;
+    shownVuLevel = ticksWithoutAudio < 10 ? processor.getVuLevel() : shownVuLevel * 0.88f;
+
+    const auto reference = processor.getVuReference();
+    if (reference != vu.getReference())   // the project was reloaded
+        vu.setReference (reference);
+    vu.setNeedle (shownVuLevel > 0.0f ? juce::Decibels::gainToDecibels (shownVuLevel) - (float) reference : VuMeter::minVu);
+
+    loudness.setReadings (processor.getShortTermLufs(), juce::Decibels::gainToDecibels (processor.getTruePeak(), -100.0f));
 }
 
 void MainView::paintReductionRing (juce::Graphics& g, const Knob& knob, float reductionDb) const

@@ -24,6 +24,8 @@ namespace Parameters
 
     juce::AudioProcessorValueTreeState::ParameterLayout createLayout()
     {
-        return {};
+        juce::AudioProcessorValueTreeState::ParameterLayout layout;
+        layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { ParamIDs::bypass, 1 }, "Bypass", false));
+        return layout;
     }
 }

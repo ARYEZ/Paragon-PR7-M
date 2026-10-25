@@ -4,9 +4,9 @@
 
 // The VU meter in the middle of the panel: a cream face with a scale from
 // -20 to +3 VU (the red zone from 0 up), a needle, and its glass. It shows
-// the output level. For now it only draws; the needle's movement (VU
-// ballistics: about 300 ms to rise, and the same to fall) comes with the
-// metering step.
+// the output level, with the level 0 VU stands for printed small on the
+// face. It only draws: the needle's movement (VU ballistics) is worked out
+// in the processor (metering::VuBallistics).
 class VuMeter final : public juce::Component
 {
 public:
@@ -16,6 +16,10 @@ public:
     void setNeedle (float vu);
     float getNeedle() const noexcept { return needle; }
 
+    // The level 0 VU stands for (dBFS), printed on the face.
+    void setReference (int dBFS);
+    int getReference() const noexcept { return reference; }
+
     void paint (juce::Graphics&) override;
 
     static constexpr float minVu = -20.0f, maxVu = 3.0f;
@@ -23,4 +27,5 @@ public:
 
 private:
     float needle = minVu;
+    int reference = -14;
 };

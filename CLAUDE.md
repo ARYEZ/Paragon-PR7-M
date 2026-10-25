@@ -18,11 +18,18 @@ PR7-C runs on many tracks, so it adds no delay and stays light. Mastering runs o
 ## What's here
 
 - **The plugin:** true stereo (stereo in/out, or mono in/out). Identity: `Paragon PR7-M`, plugin code `Pr7m`, bundle `com.paragon.paragonpr7m`, maker code `Prgn`, VST3 category Fx / Mastering.
-  - No parameters yet: each step adds its own. Input and output peak sources (`LevelMeterSource`) feed the meters.
+  - Parameters so far: `panel.bypass` (version hint 1). Each step adds its own. Input and output peak sources (`LevelMeterSource`) are kept (no meter uses them on the panel now).
+  - **Signal path in `processChunk`:** the input is copied to `dry`, the modules run in place (none yet), then `effects::MatchedBypass` (`dsp/MatchedBypass.h`) mixes, then the **output** is metered (what's heard). Hosts sending bigger blocks than `prepareToPlay` said are split into chunks. When a module adds latency, `dry` must be delayed by the same amount.
+  - **BYPASS at matched loudness:** measures the short-term loudness of `dry` and of the processed mix and, bypassed, plays `dry` turned to the processed loudness (20 ms crossfade, match smoothed over 0.5 s, held below −60 LUFS, ±24 dB, a boost capped so `dry`'s peaks over the last 3 s stay under −0.3 dBFS). The modules keep running while bypassed. A 0 dB match is exactly 1: with nothing processing, bypass is bit for bit. The host's own bypass is left as JUCE's plain bypass (not linked to `panel.bypass`).
+  - **Metering (`dsp/Loudness.h`, `dsp/TruePeak.h`, `dsp/VuBallistics.h`):** BS.1770-4 K-weighting and short-term loudness (3 s, 100 ms steps; mono counts as one channel); true peak, 4× oversampled below 96 kHz (2× to 192 kHz), 32 taps per phase; the VU needle as a spring (damping 0.8127, 13.51 rad/s: 99% in 300 ms, 1.25% overshoot), run per channel at the sample rate, the louder side shown, scaled so a sine reads its peak. Handed to the UI by atomics (`getVuLevel`, `getShortTermLufs`, `getTruePeak` via `HeldPeakSource`, cleared on a click and when the host starts playing).
+  - **0 VU reference:** −18, −14 (default) or −10 dBFS, in the gear menu, saved in the project (a property of the parameter state, `vuReference`, not a host parameter). Printed small on the VU face.
+  - **RESET** (`resetKnobs`): every parameter but `panel.bypass` back to its default, each as a host gesture.
 - **`source/ui/MainView`:** a fixed **1448 × 640** canvas (the header, then the faceplate `MainView::faceplate()`), scaled by the editor. Every control of the agreed layout is placed, **inert** until its step: tooltips say which step brings it. Controls are registered by ID (`tone.air`, `tone.focus`, `tone.body`, `dyn.push`, `dyn.volume`, `panel.reset`, `panel.bypass`, `stereo.width`, `dyn.transients`, `colour.analog`, `dyn.bassPunch`).
-  - **`VuMeter`**: cream face, −20 to +3 VU on a real VU's voltage spacing, red from 0 up, needle, glass. Shows the **output** (owner decision). It only draws so far (`setNeedle`); VU ballistics come in step 1.
+  - **`VuMeter`**: cream face, −20 to +3 VU on a real VU's voltage spacing, red from 0 up, needle, glass. Shows the **output** (owner decision). It only draws (`setNeedle`, `setReference`); the ballistics are the processor's. `MainView::updateMeters` (60 Hz timer; tests call it directly, since JUCE's timer thread can't be relied on in tests) reads the processor and lets the needle fall by itself if the host stops sending audio.
+  - **`LoudnessDisplay`** (`meter.loudness`), under the VU: short-term LUFS on the left, max true peak (dBTP, red above −1) on the right, seven-segment. A click clears the true peak.
+  - **Levers:** BYPASS up = bypassed (its tip glows), attached to `panel.bypass`. RESET is momentary: up, then back down after 250 ms.
   - **PUSH and VOLUME's green LED rings** (`setGainReduction`): 12 LEDs, 1 per dB, on the knob's dark rim along the top end of its travel, drawn over the knob (`paintOverChildren`).
-  - `PARAGON_SNAPSHOT_DEMO=1` sets the needle and the LEDs for a render.
+  - `PARAGON_SNAPSHOT_DEMO=1` sets the needle, the readout (−9.8 LUFS, −0.3 dBTP) and the LEDs for a render.
 - **Carried over from PR7-C** (see its CLAUDE.md for the history): `ParagonLookAndFeel` (incl. black menus and dialogs), `Finish` (Pearl White / White + Neon / Pearl Black; settings file "Paragon PR7-M"; Pearl Black is PR7-G's face gradient), `Controls` (`Knob`, `Led`, `LeverSwitch`, `RoundButton`, `GainReductionMeter`), `LevelMeter` (orange-to-pink LEDs; not on the panel now), `LedDisplay`, `Logo` (now "-M"), `dsp/EffectUtils.h` (`BypassFade`), `dsp/Biquad.h`.
 - **`reference/pr7c/dsp/`:** PR7-C's EQ, compressor, limiter, saturation, console colour and stereo tools. **Not compiled.** Starting points to copy into `source/dsp/` and adapt when a module needs them (the limiter would want look-ahead here).
 
@@ -57,7 +64,7 @@ The owner wants PR7-M to work like a well-known all-in-one mastering processor: 
 
 One step at a time, each built, tested, rendered and shown to the owner first.
 
-1. **The panel (drawn, awaiting the owner's approval) and the metering:** the VU needle's movement, LUFS and true-peak readouts, BYPASS (matched loudness) and RESET.
+1. **The panel (approved) and the metering:** the VU needle's movement, LUFS and true-peak readouts, BYPASS (matched loudness) and RESET. Built; awaiting the owner's listening test.
 2. **VOLUME:** the look-ahead true-peak limiter.
 3. **PUSH:** the glue compressor macro.
 4. **BODY, FOCUS, AIR.**
@@ -66,9 +73,11 @@ One step at a time, each built, tested, rendered and shown to the owner first.
 7. **Presets.**
 8. **The assistant** (later).
 
-## Open questions
+## Decisions (step 1, agreed with the owner)
 
-- **Metering:** `LevelMeter` uses PR7-C's console calibration (0 = −20 dBFS). The VU's 0 VU reference level (e.g. −18 dBFS) and where LUFS / true peak appear on the panel are to be agreed in step 1.
+- **0 VU** is choosable (−18 / −14 / −10 dBFS), −14 by default, saved with the project.
+- **The readout** is an LED strip under the VU: **short-term LUFS** and **max true peak** only (not integrated, momentary or LRA).
+- **BYPASS** matches loudness automatically; **RESET** is momentary, no confirmation.
 
 ## Names
 
