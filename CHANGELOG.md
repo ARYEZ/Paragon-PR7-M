@@ -2,6 +2,16 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.5.0
+
+**AIR, FOCUS and BODY work: the tone.** The three knobs down the left now shape the sound, first in the chain. BASS PUNCH and TRANSIENTS come next.
+
+- **AIR** lifts or lowers the very top, from about 12 kHz up: the air above the cymbals. Up to 6 dB either way at full turn.
+- **FOCUS** lifts or lowers a broad region around 2.5 kHz, where voices and leads come through. Up to 6 dB either way.
+- **BODY** gives more or less low end (from about 200 Hz down), up to 5 dB, and turns the rest of the mix the other way so the **loudness stays the same**: you hear more or less body, not just louder or quieter.
+- **The scales read true:** AIR's and FOCUS's markings are finer near 0 (−15, −10, −6, −3, 0, +3, +6, +10, +15), and the knobs follow them exactly.
+- **Untouched at 0, no delay:** at 0 each knob leaves the sound exactly as it was. Double-click a knob to send it back to 0. Turning them doesn't click.
+
 ## 0.4.0
 
 **PUSH works: the compressor that holds the mix together.** The second knob that changes the sound. BODY, FOCUS and AIR come next.
