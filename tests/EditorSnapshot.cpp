@@ -8,15 +8,15 @@
 // UI without a DAW. Run with:
 //   PARAGON_SNAPSHOT=editor.png ./ParagonPR7MTests "[snapshot]"
 // PARAGON_SNAPSHOT_WIDTH sets the window width (default: the canvas's;
-// twice that for a 2x render). PARAGON_SNAPSHOT_FINISH=black or =neon picks
-// the finish. PARAGON_SNAPSHOT_DEMO=1 loads the "Pop - Polished" preset and
+// twice that for a 2x render). PARAGON_SNAPSHOT_FINISH=aurora (or neon or
+// white) draws AURORA; otherwise OBSIDIAN, the default. PARAGON_SNAPSHOT_DEMO=1 loads the "Pop - Polished" preset and
 // sets the VU needle, the loudness readout and PUSH and VOLUME's LEDs, to
 // show them. PARAGON_SNAPSHOT_LISTENING=1 shows the assistant listening.
 TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
 {
     const auto path = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT", "editor.png");
     const auto finish = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT_FINISH", {});
-    Finish::set (finish == "black" ? Finish::Type::pearlBlack : finish == "neon" ? Finish::Type::pearlWhiteNeon : Finish::Type::pearlWhite, false);
+    Finish::set (finish == "aurora" || finish == "neon" || finish == "white" ? Finish::Type::aurora : Finish::Type::obsidian, false);
 
     ParagonPR7MAudioProcessor processor;
     processor.prepareToPlay (48000.0, 256);
@@ -68,6 +68,51 @@ TEST_CASE ("Render the editor to a PNG", "[.][snapshot]")
         }
 
     const auto image = editor->createComponentSnapshot (editor->getLocalBounds());
+    juce::File (juce::File::getCurrentWorkingDirectory().getChildFile (path)).deleteFile();
+    juce::FileOutputStream stream (juce::File::getCurrentWorkingDirectory().getChildFile (path));
+    REQUIRE (stream.openedOk());
+    juce::PNGImageFormat png;
+    REQUIRE (png.writeImageToStream (image, stream));
+}
+
+// Hidden test: the gear menu (the finish chooser and the 0 VU setting) as
+// the plugin's look-and-feel draws it. A menu opens in its own window, so
+// the editor snapshot can't show it. PARAGON_SNAPSHOT=menu.png.
+TEST_CASE ("Render the settings menu to a PNG", "[.][snapshot-menu]")
+{
+    const auto path = juce::SystemStats::getEnvironmentVariable ("PARAGON_SNAPSHOT", "menu.png");
+    ParagonPR7MAudioProcessor processor;
+    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());   // sets the plugin's look-and-feel
+    auto& laf = juce::LookAndFeel::getDefaultLookAndFeel();
+    Finish::set (Finish::Type::obsidian, false);
+
+    struct Row { juce::String text; bool header = false, ticked = false; };
+    std::vector<Row> rows { { "Finish", true } };
+    for (const auto type : Finish::choices)
+        rows.push_back ({ Finish::nameOf (type), false, Finish::get() == type });
+    rows.push_back ({ "VU meter: 0 VU is", true });
+    for (const auto reference : ParagonPR7MAudioProcessor::vuReferenceChoices)
+        rows.push_back ({ juce::String (reference) + " dBFS" + (reference == ParagonPR7MAudioProcessor::defaultVuReference ? " (streaming loudness)" : ""),
+                          false, reference == processor.getVuReference() });
+
+    constexpr int width = 260, rowHeight = 26, scale = 2;
+    const auto height = (int) rows.size() * rowHeight + 8;
+    juce::Image image (juce::Image::ARGB, width * scale, height * scale, true);
+    {
+        juce::Graphics g (image);
+        g.addTransform (juce::AffineTransform::scale ((float) scale));
+        laf.drawPopupMenuBackground (g, width, height);
+        auto y = 4;
+        for (const auto& row : rows)
+        {
+            const juce::Rectangle<int> area (0, y, width, rowHeight);
+            if (row.header)
+                laf.drawPopupMenuSectionHeader (g, area, row.text);
+            else
+                laf.drawPopupMenuItem (g, area, false, true, false, row.ticked, false, row.text, {}, nullptr, nullptr);
+            y += rowHeight;
+        }
+    }
     juce::File (juce::File::getCurrentWorkingDirectory().getChildFile (path)).deleteFile();
     juce::FileOutputStream stream (juce::File::getCurrentWorkingDirectory().getChildFile (path));
     REQUIRE (stream.openedOk());

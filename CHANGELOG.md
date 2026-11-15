@@ -2,6 +2,26 @@
 
 Each version's notes appear on its GitHub Release page.
 
+## 0.9.0
+
+**Two finishes, OBSIDIAN and AURORA, and the assistant (LISTEN).**
+
+- **Two finishes, OBSIDIAN and AURORA**, the same choice every PR7 now has. Pick one from the gear menu.
+  - **OBSIDIAN** is the pearl black faceplate (Pearl Black renamed). **It's now the default.**
+  - **AURORA** is the pearl white faceplate (Pearl White + Neon renamed).
+  - **Pearl White is gone.** If you were on it, or never picked a finish, PR7-M now opens in Obsidian. If you picked Pearl White + Neon, it stays Aurora. Your songs aren't affected: the finish is a preference of yours, not part of a project.
+- **Black knobs in neon rings, on both finishes.** Every knob's cap is now glossy black (the neon-coloured caps are gone), and the ring of light round it runs pink to red to orange across, a little brighter because it's a light. The buttons at the top (LISTEN, SAVE, the "…" menu) are black keys in a pink-to-orange rim.
+- **AURORA is 10% softer than full white.** Full pearl white was too much to look at for long. The faceplate (its shine, its edge and its grain included) is drawn at 90% of its old brightness, so pure white becomes 230 out of 255: still clearly a white pearl plate, without the glare.
+  - The lettering, the knobs and their rings, the VU meter, the readouts and the levers keep their own colours, so they stand out a little more.
+  - OBSIDIAN looks exactly as Pearl Black did.
+- **The assistant: LISTEN.** Built after 0.8.0 and first released here.
+  - Press **LISTEN**, pick a loudness (**Streaming** about −14 LUFS, **Loud** about −10, **Maximum** about −8), then play the loudest part of your song.
+  - After 15 seconds of music it thinks for a few seconds and sets every knob for you (BYPASS and your 0 VU setting are left alone). Silence before the song starts doesn't count.
+  - It nudges the tone part of the way towards a typical modern master's balance (dull: more AIR; boxy: less BODY; thin lows: more BASS PUNCH; harsh: less FOCUS), sets PUSH and TRANSIENTS by how spiky the mix is, a little WIDTH for a narrow mix, ANALOG gently, then finds the VOLUME that lands your loudest part on the loudness you picked.
+  - For Streaming and Loud it won't push VOLUME into audible clipping: a mix too spiky to get there cleanly stops short, and the display says so.
+  - The result is named like a preset ("Assistant - Loud"), so ` *` and SAVE work as usual, and you can change anything afterwards.
+  - Our own design. The "typical master's balance" it aims at is our approximation, to be tuned by ear.
+
 ## 0.8.0
 
 **Presets.** Save your own settings, and start from one of 13 factory presets. The preset system works like PR7-C's.

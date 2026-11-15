@@ -26,8 +26,9 @@ namespace
                     juce::Justification::centredLeft, false);
     }
 
-    // The faceplate in the finish's pearl (PR7-C's plates; Pearl Black is
-    // PR7-G's black unit's face gradient).
+    // The faceplate in the finish's pearl (PR7-C's plates; OBSIDIAN is
+    // PR7-G's black unit's face gradient). Aurora's is dimmed afterwards,
+    // with its grain (see MainView::paint).
     void drawPlate (juce::Graphics& g, juce::Rectangle<float> bounds)
     {
         const auto black = Finish::isBlack();
@@ -249,9 +250,8 @@ void MainView::showSettingsMenu()
 {
     juce::PopupMenu menu;
     menu.addSectionHeader ("Finish");
-    // In the order they're best read, not the order they're saved in.
-    for (const auto type : { Finish::Type::pearlWhite, Finish::Type::pearlWhiteNeon, Finish::Type::pearlBlack })
-        menu.addItem (Finish::names[(int) type], true, Finish::get() == type, [type] { Finish::set (type); });
+    for (const auto type : Finish::choices)
+        menu.addItem (Finish::nameOf (type), true, Finish::get() == type, [type] { Finish::set (type); });
     // Saved with the project, unlike the finish.
     menu.addSectionHeader ("VU meter: 0 VU is");
     for (const auto reference : ParagonPR7MAudioProcessor::vuReferenceChoices)
@@ -548,14 +548,7 @@ void MainView::paint (juce::Graphics& g)
 
     // The faceplate, its satin grain, and a screw in each corner.
     const auto plate = faceplate();
-    drawPlate (g, plate);
-    {
-        juce::Graphics::ScopedSaveState saved (g);
-        juce::Path clip;
-        clip.addRoundedRectangle (plate, 10.0f);
-        g.reduceClipRegion (clip);
-        g.drawImageAt (grain, 0, 0);
-    }
+    paintFaceplate (g, plate, grain);
     for (const auto corner : { plate.getTopLeft().translated (24.0f, 22.0f), plate.getTopRight().translated (-24.0f, 22.0f),
                                plate.getBottomLeft().translated (24.0f, -22.0f), plate.getBottomRight().translated (-24.0f, -22.0f) })
         drawScrew (g, corner);
@@ -571,6 +564,27 @@ void MainView::paint (juce::Graphics& g)
                                          juce::Justification::centred, Finish::inkDim());
     Logo::drawMark (g, juce::Rectangle<float> (180.0f, 34.0f).withCentre ({ 958.0f, 556.0f }), juce::Justification::centred,
                     { Finish::ink(), Finish::printedRed(), Finish::stampEdge(), {}, 1.0f, false });
+}
+
+void MainView::paintFaceplate (juce::Graphics& g, juce::Rectangle<float> plate, const juce::Image& satin, bool dim)
+{
+    drawPlate (g, plate);
+    {
+        juce::Graphics::ScopedSaveState saved (g);
+        juce::Path clip;
+        clip.addRoundedRectangle (plate, 10.0f);
+        g.reduceClipRegion (clip);
+        g.drawImageAt (satin, 0, 0);
+    }
+    // Aurora's pearl, all of it (the plate, its sheen and edge, the grain),
+    // 10% less bright (Finish::auroraDimming), in one go; the screws and the
+    // printing go on after, in their own colours. Nothing on Obsidian.
+    if (dim)
+    {
+        juce::Path pearl;
+        pearl.addRoundedRectangle (plate, 10.0f);
+        Finish::dimPearl (g, pearl);
+    }
 }
 
 void MainView::paintOverChildren (juce::Graphics& g)

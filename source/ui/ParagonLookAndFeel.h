@@ -96,7 +96,7 @@ public:
     static constexpr const char* bareProperty = "bare";
 
     // Set this on a vertical slider to draw it as the channel's output
-    // fader: a black slot and a chrome cap with a red line across it.
+    // fader: a black slot and a black key for a cap with a pale line across it.
     static constexpr const char* channelFaderProperty = "channelFader";
     static constexpr int channelFaderThumbRadius = 34;   // half the cap's height
 
@@ -137,10 +137,9 @@ public:
     // The mockup's piano-black keys (footswitches, slot blocks, small
     // buttons): a glossy black top set in chamfered edges, the top bevel
     // catching the light, the side bevels reflecting the red glow, and a
-    // soft shadow on the metal. `bevel` is the chamfer's width. `neon`
-    // draws it pink to red to orange (the pearl black unit's keys).
+    // soft shadow on the metal. `bevel` is the chamfer's width.
     static void drawPianoKey (juce::Graphics&, juce::Rectangle<float> area, float radius, float bevel,
-                              bool pressed, bool highlighted, bool neon = false);
+                              bool pressed, bool highlighted);
 
     // A console button's icon (see iconProperty), in `colour`.
     static void drawIcon (juce::Graphics&, const juce::String& icon, juce::Rectangle<float> area, juce::Colour colour, bool on);
@@ -148,7 +147,7 @@ public:
     // The mockup's LED bars: when lit, a neon tube (white-hot core inside a
     // red-orange outline, with a soft glow); when off, a dimmer solid red.
     static void drawNeonBar (juce::Graphics&, juce::Rectangle<float> bar, bool lit);
-    // A raised chrome bezel on the metal with a dark well inside it, the way a
+    // A raised bezel (the neon, pink to red to orange) with a dark well inside it, the way a
     // real unit's footswitches and big keys are mounted. Returns the well,
     // for the key to be drawn in.
     static juce::Rectangle<float> drawChromeBezel (juce::Graphics&, juce::Rectangle<float> bezel, float radius);

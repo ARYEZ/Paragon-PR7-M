@@ -100,11 +100,18 @@ void ParagonLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& 
             }
             return;
         }
-        g.setColour (juce::Colours::black.withAlpha (0.5f));
-        g.fillRoundedRectangle (area.expanded (1.0f), 5.5f);
-        const auto neon = Finish::neonKeys();
-        drawPianoKey (g, area.reduced (1.0f), 4.0f, 2.2f, down, highlighted, neon);
-        if (button.getToggleState() && ! neon && ! button.getProperties().contains (iconProperty))
+        // The recess's rim carries the neon, pink to red to orange across,
+        // lit from below like the small keys' surrounds; a dark well inside it.
+        const auto rim = area.expanded (1.0f);
+        g.setGradientFill (Finish::neonGradient (rim.getX(), rim.getRight()));
+        g.fillRoundedRectangle (rim, 5.5f);
+        g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.3f), 0.0f, rim.getY(),
+                                                 juce::Colours::white.withAlpha (0.25f), 0.0f, rim.getBottom(), false));
+        g.fillRoundedRectangle (rim, 5.5f);
+        g.setColour (juce::Colour (0xff1a1216));
+        g.fillRoundedRectangle (area.reduced (0.4f), 4.6f);
+        drawPianoKey (g, area.reduced (1.0f), 4.0f, 2.2f, down, highlighted);
+        if (button.getToggleState() && ! button.getProperties().contains (iconProperty))
         {
             const auto lit = button.getProperties()[alertProperty] ? ParagonColours::meterRed : ParagonColours::accent;
             const auto face = area.reduced (4.0f, 3.0f);
@@ -129,17 +136,20 @@ void ParagonLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& 
 
     if (button.getProperties()[pedalButtonProperty])
     {
-        // A small piano-black key, in a recessed chrome surround on the metal:
-        // a dark well round the key, a lit lower lip, and a chrome rim.
+        // A small piano-black key, in a recessed surround on the metal: a
+        // dark well round the key, a lit lower lip, and a neon rim, pink to
+        // red to orange across.
         const auto surround = button.getLocalBounds().toFloat().reduced (0.5f);
-        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff6e5f67), 0.0f, surround.getY(),
-                                                 juce::Colour (0xffe9dde3), 0.0f, surround.getBottom(), false));
+        g.setGradientFill (Finish::neonGradient (surround.getX(), surround.getRight()));
+        g.fillRoundedRectangle (surround, 5.0f);
+        g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.3f), 0.0f, surround.getY(),
+                                                 juce::Colours::white.withAlpha (0.25f), 0.0f, surround.getBottom(), false));
         g.fillRoundedRectangle (surround, 5.0f);
         g.setColour (juce::Colour (0xff1a1216));
         g.fillRoundedRectangle (surround.reduced (1.5f), 4.0f);
         g.setColour (juce::Colours::black.withAlpha (0.55f));
         g.drawRoundedRectangle (surround, 5.0f, 0.8f);
-        drawPianoKey (g, surround.reduced (2.2f, 2.0f).withTrimmedBottom (0.6f), 3.0f, 2.2f, down, highlighted, Finish::neonKeys());
+        drawPianoKey (g, surround.reduced (2.2f, 2.0f).withTrimmedBottom (0.6f), 3.0f, 2.2f, down, highlighted);
         return;
     }
 
@@ -170,10 +180,8 @@ void ParagonLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
     {
         const auto& properties = button.getProperties();
         const auto on = button.getToggleState();
-        const auto neon = Finish::neonKeys();
         auto area = button.getLocalBounds().toFloat().reduced (5.0f, 4.0f).translated (0.0f, down ? 0.5f : -0.5f);
-        const auto litColour = properties[alertProperty] ? ParagonColours::meterRed.brighter (0.15f)
-                                                         : (neon ? juce::Colour (0xffffe9a8) : juce::Colour (0xffffb04a));
+        const auto litColour = properties[alertProperty] ? ParagonColours::meterRed.brighter (0.15f) : juce::Colour (0xffffb04a);
         const auto colour = ! button.isEnabled() ? juce::Colours::white.withAlpha (0.4f)
                                                  : on ? litColour : juce::Colour (0xffe9e5e8);
 
@@ -234,25 +242,14 @@ void ParagonLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& bu
     if (button.getButtonText().isEmpty())
     {
         // Just the LED stripe, like the mockup's EXIT / MODE / BYPASS caps.
-        // On a neon key an unlit stripe would be red on red, so it shows
-        // as a dark slot instead.
         const auto stripe = area.withSizeKeepingCentre (area.getWidth() * 0.6f, 4.0f).translated (0.0f, down ? 0.5f : -0.5f);
-        if (Finish::neonKeys() && ! on)
-        {
-            g.setColour (juce::Colours::black.withAlpha (0.5f));
-            g.fillRoundedRectangle (stripe, 2.0f);
-            return;
-        }
         drawNeonBar (g, stripe, on);
         return;
     }
 
     g.setFont (juce::FontOptions (juce::jmin (12.0f, area.getHeight() * 0.7f), juce::Font::bold));
-    // Light lettering on a black key; white on a neon one (lit: a pale
-    // gold, as the accent orange would vanish into the key).
-    const auto neonKey = Finish::neonKeys();
-    g.setColour (button.isEnabled() ? (on ? (neonKey ? juce::Colour (0xffffe9a8) : ParagonColours::accent) : (neonKey ? juce::Colours::white : ParagonColours::text))
-                                    : (neonKey ? juce::Colours::white.withAlpha (0.5f) : ParagonColours::textDim));
+    // Light lettering on the black key (lit: the accent orange).
+    g.setColour (button.isEnabled() ? (on ? ParagonColours::accent : ParagonColours::text) : ParagonColours::textDim);
     g.drawFittedText (button.getButtonText(), area.toNearestInt(), juce::Justification::centred, 1);
 }
 
@@ -272,10 +269,15 @@ void ParagonLookAndFeel::drawPedalKnob (juce::Graphics& g, juce::Rectangle<float
     const auto ringRx = size * 0.29f, ringRy = size * 0.26f;
     const auto ringY = baseY - size * 0.03f;         // the ring's centre, a little above the base
     const juce::Colour neon { 0xffff2e3a }, neonCore { 0xffffd6d6 };
-    // On the pearl black unit the knobs are neon, like its keys: the
-    // cylinder and its top coloured pink to red to orange across, lit and
-    // shaded the same way as the black knob.
-    const auto neonKnob = Finish::neonKeys();
+    // The ring carries the neon's pink to red to orange across, like the
+    // keys' rings (brightened: the ring is a light, the rims are metal).
+    const auto ringFill = [&] (float alpha)
+    {
+        auto gradient = Finish::neonGradient (cx - ringRx, cx + ringRx);
+        for (int i = 0; i < gradient.getNumColours(); ++i)
+            gradient.setColour (i, gradient.getColour (i).brighter (0.35f).withAlpha (alpha));
+        g.setGradientFill (gradient);
+    };
 
     // 1. Light pooling on the metal round the ring (kept tight, so it reads
     //    as a glow rather than a wash of pink), and the knob's contact shadow.
@@ -300,11 +302,11 @@ void ParagonLookAndFeel::drawPedalKnob (juce::Graphics& g, juce::Rectangle<float
     };
     const auto strokeNeon = [&] (const juce::Path& arc)
     {
-        g.setColour (neon.withAlpha (0.18f));
+        ringFill (0.18f);
         g.strokePath (arc, juce::PathStrokeType (size * 0.075f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (neon.withAlpha (0.45f));
+        ringFill (0.45f);
         g.strokePath (arc, juce::PathStrokeType (size * 0.032f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-        g.setColour (neon);
+        ringFill (1.0f);
         g.strokePath (arc, juce::PathStrokeType (size * 0.016f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
         g.setColour (neonCore);
         g.strokePath (arc, juce::PathStrokeType (size * 0.006f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
@@ -335,24 +337,11 @@ void ParagonLookAndFeel::drawPedalKnob (juce::Graphics& g, juce::Rectangle<float
     side.lineTo (cx + rx, topY);
     side.closeSubPath();
     {
-        if (neonKnob)
-        {
-            g.setGradientFill (Finish::neonGradient (cx - rx, cx + rx));
-            g.fillPath (side);
-            juce::ColourGradient light (juce::Colours::black.withAlpha (0.6f), cx - rx, 0.0f, juce::Colours::black.withAlpha (0.6f), cx + rx, 0.0f, false);
-            light.addColour (0.3, juce::Colours::white.withAlpha (0.25f));
-            light.addColour (0.55, juce::Colours::transparentBlack);
-            g.setGradientFill (light);
-            g.fillPath (side);
-        }
-        else
-        {
-            juce::ColourGradient wall (juce::Colour (0xff030304), cx - rx, 0.0f, juce::Colour (0xff030304), cx + rx, 0.0f, false);
-            wall.addColour (0.3, juce::Colour (0xff1b1a1e));
-            wall.addColour (0.55, juce::Colour (0xff0c0c0e));
-            g.setGradientFill (wall);
-            g.fillPath (side);
-        }
+        juce::ColourGradient wall (juce::Colour (0xff030304), cx - rx, 0.0f, juce::Colour (0xff030304), cx + rx, 0.0f, false);
+        wall.addColour (0.3, juce::Colour (0xff1b1a1e));
+        wall.addColour (0.55, juce::Colour (0xff0c0c0e));
+        g.setGradientFill (wall);
+        g.fillPath (side);
 
         juce::Graphics::ScopedSaveState state (g);
         g.reduceClipRegion (side);
@@ -366,9 +355,9 @@ void ParagonLookAndFeel::drawPedalKnob (juce::Graphics& g, juce::Rectangle<float
             const auto theta = MathConstants::pi * (float) i / (float) ridges;
             const auto x = cx - rx * std::cos (theta);
             const auto facing = std::sin (theta);
-            g.setColour (juce::Colours::white.withAlpha ((neonKnob ? 0.22f : 0.11f) * facing));
+            g.setColour (juce::Colours::white.withAlpha (0.11f * facing));
             g.fillRect (juce::Rectangle<float> (x, topY, 0.7f, (baseY + ry) - topY));
-            g.setColour (juce::Colours::black.withAlpha ((neonKnob ? 0.3f : 0.5f) * facing));
+            g.setColour (juce::Colours::black.withAlpha (0.5f * facing));
             g.fillRect (juce::Rectangle<float> (x + 0.7f, topY, 0.7f, (baseY + ry) - topY));
         }
 
@@ -397,10 +386,7 @@ void ParagonLookAndFeel::drawPedalKnob (juce::Graphics& g, juce::Rectangle<float
     {
         juce::Graphics::ScopedSaveState state (g);
         g.reduceClipRegion (topFace);
-        if (neonKnob)
-            g.setGradientFill (Finish::neonGradient (top.getX(), top.getRight()));
-        else
-            g.setColour (juce::Colour (0xff09090b));
+        g.setColour (juce::Colour (0xff09090b));
         g.fillPath (topFace);
 
         constexpr int wedges = 144;
@@ -414,7 +400,7 @@ void ParagonLookAndFeel::drawPedalKnob (juce::Graphics& g, juce::Rectangle<float
             wedge.lineTo (cx + std::sin (a0) * rx * 1.1f, topY - std::cos (a0) * ry * 1.1f);
             wedge.lineTo (cx + std::sin (a1) * rx * 1.1f, topY - std::cos (a1) * ry * 1.1f);
             wedge.closeSubPath();
-            g.setColour (neonKnob ? juce::Colours::white.withAlpha (0.03f + 0.38f * fan) : juce::Colour (0xff6a6970).withAlpha (0.06f + 0.7f * fan));
+            g.setColour (juce::Colour (0xff6a6970).withAlpha (0.06f + 0.7f * fan));
             g.fillPath (wedge);
         }
 
@@ -424,7 +410,7 @@ void ParagonLookAndFeel::drawPedalKnob (juce::Graphics& g, juce::Rectangle<float
 
         // Darker towards the rim, so the top reads as slightly domed.
         g.setGradientFill (juce::ColourGradient (juce::Colours::black.withAlpha (0.0f), cx, topY,
-                                                 juce::Colours::black.withAlpha (neonKnob ? 0.35f : 0.5f), cx + rx, topY, true));
+                                                 juce::Colours::black.withAlpha (0.5f), cx + rx, topY, true));
         g.fillPath (topFace);
 
         // The pointer: a fine engraved line, turning with the value.
@@ -443,12 +429,12 @@ void ParagonLookAndFeel::drawPedalKnob (juce::Graphics& g, juce::Rectangle<float
     {
         juce::Path backEdge;
         backEdge.addCentredArc (cx, topY, rx - 0.5f, ry - 0.5f, 0.0f, -MathConstants::pi * 0.5f, MathConstants::pi * 0.5f, true);
-        g.setColour (juce::Colours::white.withAlpha (neonKnob ? 0.7f : 0.55f));
+        g.setColour (juce::Colours::white.withAlpha (0.55f));
         g.strokePath (backEdge, juce::PathStrokeType (1.1f));
         g.setColour (juce::Colours::white.withAlpha (0.12f));
         g.drawEllipse (top.reduced (rx * 0.12f, ry * 0.12f), 0.7f);
     }
-    g.setColour (neonKnob ? juce::Colour (0xff2a0408) : juce::Colours::black);
+    g.setColour (juce::Colours::black);
     {
         juce::Path frontEdge;
         frontEdge.addCentredArc (cx, topY, rx, ry, 0.0f, MathConstants::pi * 0.55f, MathConstants::pi * 1.45f, true);
@@ -548,53 +534,17 @@ void ParagonLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int 
         g.drawRoundedRectangle (slot, 6.0f, 1.0f);
 
         const auto cap = juce::Rectangle<float> (42.0f, (float) channelFaderThumbRadius * 2.0f).withCentre ({ centreX, sliderPos });
-        if (Finish::neonKeys())
-        {
-            // With neon keys, the cap matches them: pink to red to orange,
-            // with grip ridges and a pale line at its centre for reading
-            // the level.
-            drawPianoKey (g, cap, 4.0f, 2.5f, false, false, true);
-            g.setColour (juce::Colours::black.withAlpha (0.18f));
-            for (auto ridge = cap.getY() + 6.0f; ridge < cap.getBottom() - 5.0f; ridge += 4.0f)
-                if (std::abs (ridge - sliderPos) > 5.0f)
-                    g.drawHorizontalLine (juce::roundToInt (ridge), cap.getX() + 5.0f, cap.getRight() - 5.0f);
-            const auto line = juce::Rectangle<float> (cap.getWidth() - 10.0f, 2.0f).withCentre ({ centreX, sliderPos });
-            g.setColour (juce::Colour (0xffffe9a8).withAlpha (0.35f));
-            g.fillRect (line.expanded (0.0f, 1.5f));
-            g.setColour (juce::Colour (0xffffe9a8));
-            g.fillRect (line);
-            return;
-        }
-
-        // The cap: brushed chrome, concave (darker across its middle), with a
-        // red line at its centre for reading the level.
-        juce::Path outline;
-        outline.addRoundedRectangle (cap, 4.0f);
-        juce::DropShadow (juce::Colours::black.withAlpha (0.6f), 10, { 0, 5 }).drawForPath (g, outline);
-        juce::ColourGradient chrome (juce::Colour (0xfffdfcfd), 0.0f, cap.getY(), juce::Colour (0xff5e5b60), 0.0f, cap.getBottom(), false);
-        chrome.addColour (0.08, juce::Colour (0xffe6e3e7));
-        chrome.addColour (0.4, juce::Colour (0xffb1aeb3));
-        chrome.addColour (0.5, juce::Colour (0xff8a878c));
-        chrome.addColour (0.56, juce::Colour (0xffeeecef));
-        chrome.addColour (0.85, juce::Colour (0xffb5b2b7));
-        g.setGradientFill (chrome);
-        g.fillPath (outline);
-        juce::ColourGradient sides (juce::Colours::black.withAlpha (0.3f), cap.getX(), 0.0f, juce::Colours::black.withAlpha (0.3f), cap.getRight(), 0.0f, false);
-        sides.addColour (0.2, juce::Colours::transparentBlack);
-        sides.addColour (0.8, juce::Colours::transparentBlack);
-        g.setGradientFill (sides);
-        g.fillPath (outline);
-        g.setColour (juce::Colours::black.withAlpha (0.12f));
-        for (auto ridge = cap.getY() + 6.0f; ridge < cap.getBottom() - 4.0f; ridge += 4.0f)
+        // The cap: a black key in the family's look, with grip ridges and a
+        // pale line at its centre for reading the level.
+        drawPianoKey (g, cap, 4.0f, 2.5f, false, false);
+        g.setColour (juce::Colours::white.withAlpha (0.08f));
+        for (auto ridge = cap.getY() + 6.0f; ridge < cap.getBottom() - 5.0f; ridge += 4.0f)
             if (std::abs (ridge - sliderPos) > 5.0f)
-                g.drawHorizontalLine (juce::roundToInt (ridge), cap.getX() + 3.0f, cap.getRight() - 3.0f);
-        g.setColour (juce::Colours::black.withAlpha (0.7f));
-        g.strokePath (outline, juce::PathStrokeType (1.0f));
-
-        const auto line = juce::Rectangle<float> (cap.getWidth() - 6.0f, 2.4f).withCentre ({ centreX, sliderPos });
-        g.setColour (ParagonColours::meterRed.withAlpha (0.35f));
-        g.fillRect (line.expanded (0.0f, 2.0f));
-        g.setColour (ParagonColours::meterRed);
+                g.drawHorizontalLine (juce::roundToInt (ridge), cap.getX() + 5.0f, cap.getRight() - 5.0f);
+        const auto line = juce::Rectangle<float> (cap.getWidth() - 10.0f, 2.0f).withCentre ({ centreX, sliderPos });
+        g.setColour (juce::Colour (0xffffe9a8).withAlpha (0.35f));
+        g.fillRect (line.expanded (0.0f, 1.5f));
+        g.setColour (juce::Colour (0xffffe9a8));
         g.fillRect (line);
         return;
     }
@@ -675,7 +625,7 @@ SharedParagonLookAndFeel::~SharedParagonLookAndFeel()
 }
 
 void ParagonLookAndFeel::drawPianoKey (juce::Graphics& g, juce::Rectangle<float> area, float radius, float bevel,
-                                       bool pressed, bool highlighted, bool neon)
+                                       bool pressed, bool highlighted)
 {
     if (pressed)
         area = area.translated (0.0f, 1.0f);
@@ -688,40 +638,6 @@ void ParagonLookAndFeel::drawPianoKey (juce::Graphics& g, juce::Rectangle<float>
     const auto top = area.withTrimmedLeft (bevel).withTrimmedRight (bevel)
                          .withTrimmedTop (bevel * 0.7f).withTrimmedBottom (bevel * (pressed ? 1.1f : 1.6f));
     const auto topRadius = juce::jmax (1.0f, radius - bevel * 0.5f);
-
-    if (neon)
-    {
-        // The pearl black unit's keys: pink to red to orange across (the
-        // colour), lit along the top and falling into deep red at the
-        // front (the shading), as in the reference swatch.
-        g.setGradientFill (Finish::neonGradient (area.getX(), area.getRight()));
-        g.fillPath (outline);
-        juce::ColourGradient chamfer (juce::Colours::white.withAlpha (0.45f), 0.0f, area.getY(), juce::Colours::black.withAlpha (0.62f), 0.0f, area.getBottom(), false);
-        chamfer.addColour (0.18, juce::Colours::white.withAlpha (0.08f));
-        chamfer.addColour (0.7, juce::Colours::black.withAlpha (0.25f));
-        g.setGradientFill (chamfer);
-        g.fillPath (outline);
-
-        juce::Path face;
-        face.addRoundedRectangle (top, topRadius);
-        g.setGradientFill (Finish::neonGradient (top.getX(), top.getRight()));
-        g.fillPath (face);
-        juce::ColourGradient shading (juce::Colours::white.withAlpha (0.08f), 0.0f, top.getY(), juce::Colours::black.withAlpha (0.4f), 0.0f, top.getBottom(), false);
-        shading.addColour (0.55, juce::Colours::transparentBlack);
-        g.setGradientFill (shading);
-        g.fillPath (face);
-        g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.12f), 0.0f, top.getY(),
-                                                 juce::Colours::white.withAlpha (0.0f), 0.0f, top.getY() + top.getHeight() * 0.55f, false));
-        g.fillRoundedRectangle (top.reduced (top.getWidth() * 0.03f, 1.0f).withHeight (top.getHeight() * 0.55f), topRadius);
-        g.setColour (juce::Colour (0xffffb0a0).withAlpha (0.9f));
-        g.drawHorizontalLine (juce::roundToInt (top.getY()), top.getX() + topRadius, top.getRight() - topRadius);
-        g.setColour (juce::Colour (0xff3a0610).withAlpha (0.5f));
-        g.drawRoundedRectangle (top, topRadius, 0.8f);
-
-        g.setColour (highlighted ? juce::Colours::white.withAlpha (0.8f) : juce::Colour (0xff2a0408));
-        g.drawRoundedRectangle (area, radius, 1.0f);
-        return;
-    }
 
     // The chamfer: lit along the top, mid grey down the sides, near black
     // along the front (the edge facing you).
@@ -792,13 +708,14 @@ juce::Rectangle<float> ParagonLookAndFeel::drawChromeBezel (juce::Graphics& g, j
     outline.addRoundedRectangle (bezel, radius);
     juce::DropShadow (juce::Colours::black.withAlpha (0.45f), 10, { 0, 4 }).drawForPath (g, outline);
 
-    // Chrome: lit along the top, darker towards the front, with the bright
-    // and dark bands of its curved sides.
-    juce::ColourGradient chrome (juce::Colour (0xfffbf5f8), 0.0f, bezel.getY(), juce::Colour (0xff4a3c43), 0.0f, bezel.getBottom(), false);
-    chrome.addColour (0.1, juce::Colour (0xffd6c6ce));
-    chrome.addColour (0.55, juce::Colour (0xff998792));
-    chrome.addColour (0.82, juce::Colour (0xffc2b0b9));
-    g.setGradientFill (chrome);
+    // The neon, pink to red to orange across, lit along the top and darker
+    // towards the front, with the bright and dark bands of its curved sides.
+    g.setGradientFill (Finish::neonGradient (bezel.getX(), bezel.getRight()));
+    g.fillPath (outline);
+    juce::ColourGradient light (juce::Colours::white.withAlpha (0.45f), 0.0f, bezel.getY(), juce::Colours::black.withAlpha (0.45f), 0.0f, bezel.getBottom(), false);
+    light.addColour (0.12, juce::Colours::white.withAlpha (0.12f));
+    light.addColour (0.6, juce::Colours::transparentBlack);
+    g.setGradientFill (light);
     g.fillPath (outline);
     juce::ColourGradient sides (juce::Colours::white.withAlpha (0.35f), bezel.getX(), 0.0f,
                                 juce::Colours::white.withAlpha (0.35f), bezel.getRight(), 0.0f, false);

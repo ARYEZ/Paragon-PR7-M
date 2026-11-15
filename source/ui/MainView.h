@@ -52,6 +52,9 @@ public:
 
     // The faceplate, on the canvas.
     static juce::Rectangle<float> faceplate() noexcept { return { 28.0f, 86.0f, 1392.0f, 526.0f }; }
+    // The faceplate's pearl in the current finish with its satin grain: on
+    // Aurora dimmed by Finish::auroraDimming unless `dim` is off (for tests).
+    static void paintFaceplate (juce::Graphics&, juce::Rectangle<float> plate, const juce::Image& satin, bool dim = true);
 
     // Reads the processor's metering into the VU needle and the readout
     // (60 times a second, from the timer).
