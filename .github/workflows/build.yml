@@ -1,0 +1,130 @@
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a release (tag v<version>) from this commit"
+        type: boolean
+        default: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: PyInstaller with a starter built here (not the shared prebuilt one Defender distrusts)
+        shell: pwsh
+        env:
+          PYINSTALLER_COMPILE_BOOTLOADER: "1"
+        run: |
+          $v = python -c "import PyInstaller; print(PyInstaller.__version__)"
+          pip install --force-reinstall --no-deps --no-cache-dir --no-binary pyinstaller "pyinstaller==$v"
+          if ($LASTEXITCODE -ne 0) { throw "building PyInstaller's bootloader failed" }
+          python -c "import PyInstaller, os; d = os.path.join(os.path.dirname(PyInstaller.__file__), 'bootloader', 'Windows-64bit-intel'); print(d, sorted(os.listdir(d)))"
+      - name: Tests (real playback; the Open with registration test writes HKCU on this runner only)
+        timeout-minutes: 20
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONFAULTHANDLER: "1"
+        # -v names each test as it starts; a test stuck for 2 minutes fails and prints where every thread waits.
+        run: python -m pytest -v -rs --timeout=120
+      - name: Build PR7-M.exe
+        run: pyinstaller --noconfirm pr7m.spec
+      - name: Check the build
+        shell: pwsh
+        run: |
+          foreach ($f in "ffmpegmediaplugin.dll", "avcodec-*.dll", "avformat-*.dll", "Qt6Multimedia.dll") {
+            if (-not (Get-ChildItem -Recurse dist/PR7-M/_internal -Filter $f)) { throw "$f is missing: no playback" }
+          }
+          foreach ($f in "dist/PR7-M/PR7-M.exe", "dist/PR7-M/_internal/pr7m/fonts/Inter-Regular.ttf",
+                         "dist/PR7-M/_internal/pr7m/icons/app.ico") {
+            if (-not (Test-Path $f)) { throw "missing $f" }
+          }
+          $vi = (Get-Item dist/PR7-M/PR7-M.exe).VersionInfo
+          "File details: $($vi.ProductName) $($vi.ProductVersion), $($vi.CompanyName), $($vi.FileDescription)"
+          if ($vi.ProductName -ne "Paragon PR7-M" -or -not $vi.ProductVersion) { throw "the .exe has no file details" }
+          Copy-Item README.md, NOTICE.md dist/PR7-M/
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/PR7-M -DestinationPath "PR7-M-${{ github.ref_name }}-windows-x64.zip".Replace('/', '-')
+      - name: Build the installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path pr7m/__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /DAppVersion=$v installer/pr7m.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+          "PR7M_VERSION=$v" >> $env:GITHUB_ENV
+      - name: Scan the build with Microsoft Defender
+        shell: pwsh
+        run: |
+          $mp = "$env:ProgramFiles\Windows Defender\MpCmdRun.exe"
+          if (-not (Test-Path $mp)) { Write-Warning "Defender isn't on this runner: no scan"; exit 0 }
+          & $mp -SignatureUpdate | Out-Host
+          foreach ($t in (Resolve-Path dist\PR7-M).Path, (Get-Item dist\PR7-M-Setup-*.exe).FullName) {
+            & $mp -Scan -ScanType 3 -File $t -DisableRemediation | Out-Host
+            if ($LASTEXITCODE -eq 2) { throw "Defender flags $t" }
+            if ($LASTEXITCODE -ne 0) { Write-Warning "Defender scan of $t ended with $LASTEXITCODE" }
+          }
+          exit 0
+      - name: Test the installer (silent install, check, uninstall, check)
+        shell: pwsh
+        run: |
+          $p = Start-Process "dist/PR7-M-Setup-$env:PR7M_VERSION.exe" -Wait -PassThru `
+               -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=install.log"
+          if ($p.ExitCode -ne 0) { Get-Content install.log; throw "install failed: $($p.ExitCode)" }
+          python tools/verify_install.py installed
+          if ($LASTEXITCODE -ne 0) { throw "install check failed (its list above says which part)" }
+          $p = Start-Process "$env:LOCALAPPDATA\Programs\PR7-M\unins000.exe" -Wait -PassThru `
+               -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+          if ($p.ExitCode -ne 0) { throw "uninstall failed: $($p.ExitCode)" }
+          python tools/verify_install.py uninstalled
+          if ($LASTEXITCODE -ne 0) { throw "uninstall check failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PR7-M-Setup
+          path: dist/PR7-M-Setup-*.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PR7-M-windows-x64
+          path: PR7-M-*.zip
+      - name: Release notes (this version's CHANGELOG section)
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        shell: python
+        run: |
+          import os, re
+          v = os.environ["PR7M_VERSION"]
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(r"^## " + re.escape(v) + r"\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+          open("release-notes.md", "w", encoding="utf-8").write((m.group(1).strip() if m else "Paragon PR7-M " + v) + "\n")
+      - name: Name the zip by version
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        shell: pwsh
+        run: Get-Item PR7-M-*.zip | Rename-Item -NewName "PR7-M-v$env:PR7M_VERSION-windows-x64.zip"
+      - name: Release (tags v*, or Run workflow with "Publish a release" ticked)
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.PR7M_VERSION) }}
+          target_commitish: ${{ github.sha }}
+          body_path: release-notes.md
+          files: |
+            dist/PR7-M-Setup-*.exe
+            PR7-M-v*-windows-x64.zip
+          name: Paragon PR7-M v${{ env.PR7M_VERSION }}
