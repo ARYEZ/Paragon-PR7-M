@@ -17,6 +17,7 @@ from . import __version__, theme, updates
 ORG, NAME = "Paragon", "PR7-M"
 _keep: list = []   # dialogs and bridges kept alive while shown
 notify = None      # tests: a function(kind, text) instead of a message box
+answer = None      # tests: a function(text) -> bool instead of a yes / no question
 
 
 def _say(window, kind: str, text: str) -> None:
@@ -27,6 +28,28 @@ def _say(window, kind: str, text: str) -> None:
     else:
         QMessageBox.information(window, "Check for Updates", text)
 
+
+
+def _confirm(window, text: str) -> bool:
+    if answer is not None:
+        return bool(answer(text))
+    return QMessageBox.question(window, "Check for Updates", text) == QMessageBox.StandardButton.Yes
+
+
+def _family_app() -> bool:
+    """PR7-U (the family installer, which updates every Paragon app at once) is installed, and this isn't it."""
+    if NAME == "PR7-U":
+        return False
+    try:
+        from . import family
+        return family.find("PR7-U") is not None
+    except Exception:  # noqa: BLE001 - an offer, never an error
+        return False
+
+
+def open_family() -> bool:
+    from . import family
+    return family.launch("PR7-U", [])
 
 def _settings() -> QSettings:
     return QSettings(QSettings.defaultFormat(), QSettings.Scope.UserScope, ORG, NAME)
@@ -96,7 +119,12 @@ def check(window, manual: bool = True, fetch=None, sync: bool = False):
             return
         if rel is None or (not manual and str(s.value("updates/skip") or "") == rel.version):
             if manual:
-                _say(window, "info", f"You’re using the newest version of {NAME} ({__version__}).")
+                text = f"You’re using the newest version of {NAME} ({__version__})."
+                if _family_app():
+                    if _confirm(window, text + "\n\nOpen PR7-U to check the rest of the Paragon family?"):
+                        open_family()
+                else:
+                    _say(window, "info", text)
             return
         dlg = UpdateDialog(rel, window)
         _keep.append(dlg)
@@ -149,6 +177,11 @@ class UpdateDialog(QDialog):
         self.later = QPushButton("Later")
         self.go = QPushButton("Install Now")
         self.go.setDefault(True)
+        self.family = None
+        if _family_app():                     # PR7-U updates every installed family app in one go
+            self.family = QPushButton("Update All in PR7-U")
+            self.family.clicked.connect(lambda: (open_family(), self.reject()))
+            row.insertWidget(0, self.family)
         for b in (self.skip, self.later, self.go):
             row.addWidget(b)
         lay.addLayout(row)

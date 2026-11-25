@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+
+- **Check for Updates knows PR7-U**, the family installer. When it's installed, the update window has **Update All in PR7-U**, and a check by hand that finds PR7-M up to date offers to open PR7-U for the rest of the family.
+
 ## 0.1.0
 
 - First version: a media player that works the way MPC-HC works, in the Paragon family look. Playback by Qt

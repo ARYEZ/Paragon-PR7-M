@@ -1,6 +1,6 @@
 """The Paragon family's other apps on this computer (no Qt): found through their installers' uninstall entries
 (each AppId is permanent), else the default per-user folder; started with files or folders. Used for the
-family's links (PR7-M's Show in folder opens PR7-E when it is the folder app)."""
+family's links between apps, and to offer PR7-U (the family installer) from Check for Updates."""
 
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ APPS = {"PR7-Z": "{9914C6C8-01EC-476F-845D-98F814A0426E}", "PR7-W": "{D8F51204-6
         "PR7-L": "{4C0E3F59-8A0B-4E7D-9B5A-2F7C61D3A9E1}", "PR7-F": "{34F163CD-E4F2-4415-9865-1175C28F5408}",
         "PR7-E": "{6B8E2F14-3C5A-4D97-A1E0-7F29C4B85D36}",
         "PR7-R": "{1BC53F2C-70E7-45EA-B97E-FC9294E87FC3}", "PR7-P": "{02CE0A66-B141-47AD-9489-ACCB0C53E81C}",
-        "PR7-M": "{CAA852D1-CDD0-4246-8ADB-50307D44F360}"}
+        "PR7-M": "{CAA852D1-CDD0-4246-8ADB-50307D44F360}", "PR7-Q": "{D7ED5F6F-F80A-403C-8739-AA5BA3676C97}",
+        "PR7-U": "{12226380-56E6-4D77-8F5C-8052A0AE4183}"}
 UNINSTALL = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{}_is1"
 
 

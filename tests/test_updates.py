@@ -146,3 +146,32 @@ def test_the_dialog(qapp, web, monkeypatch):
 def test_install_is_windows_only():
     with pytest.raises(updates.UpdateError):
         updates.install("x.exe")
+
+
+def test_the_family_installer_is_offered(qapp, monkeypatch):
+    """With PR7-U installed: Check for Updates offers it (up to date: a question; a new version: a button)."""
+    from pr7m import family, update_ui
+    from PySide6.QtWidgets import QWidget
+    launched, asked = [], []
+    monkeypatch.setattr(family, "find", lambda app: "C:\\PR7-U\\PR7-U.exe" if app == "PR7-U" else None)
+    monkeypatch.setattr(family, "launch", lambda app, args: launched.append(app) or True)
+    monkeypatch.setattr(update_ui, "answer", lambda text: asked.append(text) or True)
+    monkeypatch.setattr(update_ui, "notify", lambda kind, text: None)
+    s = update_ui._settings()
+    s.remove("updates")
+    w = QWidget()
+    update_ui.check(w, manual=True, fetch=answer(__version__), sync=True)
+    if update_ui.NAME == "PR7-U":                     # PR7-U doesn't offer itself
+        assert not asked and not launched
+        return
+    assert "Open PR7-U" in asked[-1] and launched == ["PR7-U"]
+    update_ui.check(w, manual=True, fetch=answer("9.0.0"), sync=True)
+    dlg = w.update_dialog
+    assert dlg.family is not None and dlg.family.text() == "Update All in PR7-U"
+    dlg.family.click()
+    assert launched == ["PR7-U", "PR7-U"] and not dlg.isVisible()
+    monkeypatch.setattr(family, "find", lambda app: None)     # not installed: not offered
+    update_ui.check(w, manual=True, fetch=answer("9.0.0"), sync=True)
+    assert w.update_dialog.family is None
+    w.update_dialog.done(0)
+    s.remove("updates")
