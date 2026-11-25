@@ -104,8 +104,21 @@ jobs:
         with:
           name: PR7-M-windows-x64
           path: PR7-M-*.zip
+      - name: Is this version released yet? (pushing a new version publishes it)
+        # Runs after every check above has passed. A push whose __version__ has no release yet publishes it with the
+        # steps below; any other push publishes nothing. Run workflow with "Publish a release" and v* tags still work.
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v$env:PR7M_VERSION"
+          gh release view $tag --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) { "$tag is already released: nothing to publish." }
+          else { "$tag has no release yet: publishing it."; "AUTO_RELEASE=1" >> $env:GITHUB_ENV }
+          exit 0
       - name: Release notes (this version's CHANGELOG section)
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release) || env.AUTO_RELEASE == '1'
         shell: python
         run: |
           import os, re
@@ -114,11 +127,11 @@ jobs:
           m = re.search(r"^## " + re.escape(v) + r"\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
           open("release-notes.md", "w", encoding="utf-8").write((m.group(1).strip() if m else "Paragon PR7-M " + v) + "\n")
       - name: Name the zip by version
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release) || env.AUTO_RELEASE == '1'
         shell: pwsh
         run: Get-Item PR7-M-*.zip | Rename-Item -NewName "PR7-M-v$env:PR7M_VERSION-windows-x64.zip"
-      - name: Release (tags v*, or Run workflow with "Publish a release" ticked)
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+      - name: Release (a new version pushed, a v* tag, or Run workflow with "Publish a release" ticked)
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release) || env.AUTO_RELEASE == '1'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.PR7M_VERSION) }}
