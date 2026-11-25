@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+- Knows the whole family: PR7-DU, PR7-CB, PR7-IS, PR7-PM and PR7-SM are in its list of family apps (their permanent install IDs), so the family links find them when they're installed.
+
 ## 0.2.0
 
 - **Check for Updates knows PR7-U**, the family installer. When it's installed, the update window has **Update All in PR7-U**, and a check by hand that finds PR7-M up to date offers to open PR7-U for the rest of the family.
