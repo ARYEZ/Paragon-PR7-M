@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- **One finish for the whole family.** Choosing OBSIDIAN or AURORA here switches every Paragon app, open ones included (within a couple of seconds), and every app starts in the family's choice.
+- In AURORA, group titles and selected rows are dark and readable (they were white on the light finish).
+
 ## 0.2.1
 
 - Knows the whole family: PR7-DU, PR7-CB, PR7-IS, PR7-PM and PR7-SM are in its list of family apps (their permanent install IDs), so the family links find them when they're installed.

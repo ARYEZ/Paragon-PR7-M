@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ["PARAGON_FAMILY_FILE"] = os.path.join(__import__("tempfile").mkdtemp(prefix="family-"), "finish")  # never the real choice
 os.environ.setdefault("QT_LOGGING_RULES", "qt.multimedia.*=false")
 os.environ["PR7M_DATA"] = tempfile.mkdtemp(prefix="pr7m-data-")
 

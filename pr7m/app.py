@@ -163,7 +163,8 @@ def main(argv: list[str] | None = None) -> int:
     app.setApplicationName("PR7-M")
     if not new and hand_over(path):
         return 0
-    theme.set_finish(settings.get("finish", "obsidian"))
+    from . import finish
+    theme.set_finish(finish.start(settings.get("finish", "obsidian")))
     theme.load_fonts()
     from .main_window import MainWindow, apply_look
     apply_look(app)
@@ -171,6 +172,11 @@ def main(argv: list[str] | None = None) -> int:
     if os.path.exists(icon):
         app.setWindowIcon(QIcon(icon))
     w = MainWindow(path)
+    # one finish for the family: follow a switch made in another family app (finish.py)
+    from PySide6.QtCore import QTimer
+    _follow = QTimer(w)
+    _follow.timeout.connect(lambda: finish.follow(theme.FINISH, w.set_finish))
+    _follow.start(2000)
     w.show()
     if not new:
         listen(w)

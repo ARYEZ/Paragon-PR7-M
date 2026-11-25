@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDia
                                QFormLayout, QFrame, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
                                QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter, QVBoxLayout, QWidget)
 
+from . import finish
 from . import __version__, media, settings, theme, widgets
 from .media import ABRepeat, History, hms
 from .player import PlaylistModel, PlaylistView, SeekBar, VideoView, VolumeSlider
@@ -989,6 +990,7 @@ class MainWindow(QMainWindow):
     # ================================================================== settings and help
     def set_finish(self, name: str):
         theme.set_finish(name)
+        finish.set(theme.FINISH)                 # every family app follows (finish.py)
         settings.set("finish", name)
         apply_look(QApplication.instance())
         for gap in self.controls.findChildren(QFrame, "gap"):

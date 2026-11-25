@@ -130,6 +130,8 @@ def _chevron() -> str:
 def stylesheet() -> str:
     lit = qss_gradient(LIT)
     row_soft = qss_gradient(LIT, 0.08)
+    sel_text = "#FFFFFF" if FINISH == "obsidian" else TEXT              # white on the dark finish, ink on the light
+    box_title = "rgba(232,232,234,0.9)" if FINISH == "obsidian" else TEXT_DIM
     return f"""
 * {{ font-family: "Inter"; font-size: 13px; color: {TEXT}; outline: 0; }}
 QMainWindow, QDialog {{ background: {BACKGROUND}; }}
@@ -175,7 +177,7 @@ QCheckBox::indicator:disabled, QRadioButton::indicator:disabled {{ background: {
 QTableView, QListView {{ background: {BACKGROUND}; alternate-background-color: {ALT_ROW}; border: 1px solid {PANEL_EDGE};
               border-radius: 6px; gridline-color: {PANEL_EDGE}; }}
 QTableView::item, QListView::item {{ padding: 4px 6px; }}
-QTableView::item:selected, QListView::item:selected {{ background: {qss_gradient(LIT, 0.22)}; color: #FFFFFF; }}
+QTableView::item:selected, QListView::item:selected {{ background: {qss_gradient(LIT, 0.22)}; color: {sel_text}; }}
 QTableCornerButton::section {{ background: {TAB_FRAME}; border: none; }}
 QPlainTextEdit, QTextEdit {{ background: {WIDGET}; border: 1px solid {PANEL_EDGE}; border-radius: 6px; padding: 6px;
               font-family: "Consolas", "Cascadia Mono", "DejaVu Sans Mono", monospace; font-size: 12px;
@@ -184,7 +186,7 @@ QTreeView {{ background: {BACKGROUND}; alternate-background-color: {ALT_ROW}; bo
               border-radius: 6px; padding: 2px; }}
 QTreeView::item {{ height: 24px; padding: 0 4px; border: 1px solid transparent; }}
 QTreeView::item:hover {{ background: {row_soft}; }}
-QTreeView::item:selected {{ background: transparent; color: #FFFFFF; }}  /* the row band is painted by FileView */
+QTreeView::item:selected {{ background: transparent; color: {sel_text}; }}  /* the row band is painted by FileView */
 QHeaderView {{ background: {BACKGROUND}; }}
 QHeaderView::section {{ background: {TAB_FRAME}; color: {TEXT_DIM}; border: none; border-right: 1px solid {PANEL_EDGE};
               border-bottom: 1px solid {PANEL_EDGE}; padding: 6px 8px; font-size: 10.5px; font-weight: 600; }}
@@ -201,7 +203,7 @@ QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 QGroupBox {{ background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {DOCK_TOP}, stop:1 {DOCK_BOTTOM});
               border: 1px solid {PANEL_EDGE}; border-radius: 8px; margin-top: 22px; padding: 14px 12px 10px 12px;
               font-size: 12.5px; font-weight: 600; }}
-QGroupBox::title {{ subcontrol-origin: margin; left: 4px; top: 2px; color: rgba(232,232,234,0.9); }}
+QGroupBox::title {{ subcontrol-origin: margin; left: 4px; top: 2px; color: {box_title}; }}
 QLabel[role="dim"] {{ color: {TEXT_DIM}; }}
 QLabel[role="value"] {{ color: #FFFFFF; font-size: 13px; }}
 QLabel[role="heading"] {{ font-size: 16px; font-weight: 600; }}
