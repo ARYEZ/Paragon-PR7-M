@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.4
+
+- Sound follows Windows' default output, as in MPC-HC: when the default changes (another device chosen in Windows,
+  headphones or a monitor's speakers waking up, a driver reset), PR7-M moves to it and carries on from the same place
+  (paused stays paused). Before, it kept the device it started with and could play into one nobody hears.
+
 ## 0.3.3
 
 - The family list (`family.py`) knows the three newest Paragon apps: PR7-HW (hardware information), PR7-BK

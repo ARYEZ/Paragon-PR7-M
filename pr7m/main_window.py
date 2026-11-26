@@ -9,7 +9,7 @@ import os
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QActionGroup, QColor, QImage, QKeySequence, QLinearGradient, QPainter
-from PySide6.QtMultimedia import QAudioBufferOutput, QAudioOutput, QMediaMetaData, QMediaPlayer
+from PySide6.QtMultimedia import QAudioBufferOutput, QAudioOutput, QMediaDevices, QMediaMetaData, QMediaPlayer
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
                                QFormLayout, QFrame, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
                                QMainWindow, QMenu, QMessageBox, QPushButton, QSplitter, QVBoxLayout, QWidget)
@@ -70,6 +70,9 @@ class Controls(QWidget):
             p.fillRect(self.rect(), g)
 
 
+DEVICE_SETTLE_MS = 300            # wait for Windows' output changes to settle before following the new default
+
+
 class MainWindow(QMainWindow):
     def __init__(self, path: str | None = None, history: History | None = None, audio: bool = True):
         super().__init__()
@@ -87,6 +90,15 @@ class MainWindow(QMainWindow):
         self.player = QMediaPlayer(self)
         self.audio = QAudioOutput(self)
         self.player.setAudioOutput(self.audio)
+        # MPC-HC follows Windows' default output; Qt's QAudioOutput keeps the device it started with, so a change of
+        # default (another device chosen in Windows, a headset or monitor waking up, a driver reset) would leave PR7-M
+        # playing into a device nobody hears. Move to the new default whenever Windows' outputs change.
+        self.devices = QMediaDevices(self)
+        # Once the changes have settled: a device change arrives as several notifications, and changing the device
+        # while Qt's audio layer is still handling them deadlocks it (seen with PulseAudio; Windows sends bursts too).
+        self.device_timer = QTimer(self, singleShot=True, interval=DEVICE_SETTLE_MS)
+        self.device_timer.timeout.connect(self.follow_default_output)
+        self.devices.audioOutputsChanged.connect(self.device_timer.start)
         self.levels = QAudioBufferOutput(self)
         self.player.setAudioBufferOutput(self.levels)
         self._build()
@@ -489,6 +501,37 @@ class MainWindow(QMainWindow):
                 self.player.setPitchCompensation(settings.get_bool("keep_pitch", True))
         except AttributeError:      # an older Qt
             pass
+
+    def default_output(self):
+        return QMediaDevices.defaultAudioOutput()
+
+    def follow_default_output(self) -> bool:
+        """Play through Windows' current default output (MPC-HC's default renderer); True when it moves.
+
+        In two steps: stop, then (DEVICE_SETTLE_MS later) change the device and resume at the same place. Qt can't
+        change a playing stream's device safely (with our level meter attached the player freezes; with pitch
+        compensation off it goes silent and can crash), and changing it right after the stop deadlocks: Qt's audio
+        thread is still taking the old stream down and needs Python's lock, which this thread holds while it waits
+        inside setDevice. Between the steps the event loop runs and the audio thread finishes."""
+        new = self.default_output()
+        if new.isNull() or new.id() == self.audio.device().id():
+            return False
+        P = QMediaPlayer.PlaybackState
+        state, pos = self.player.playbackState(), self.player.position()
+        if state == P.StoppedState:
+            self.audio.setDevice(new)
+            return True
+        self.player.stop()
+
+        def resume():
+            self.audio.setDevice(self.default_output())
+            self._pending_seek = pos or None
+            if state == P.PlayingState:
+                self.player.play()
+            else:
+                self.player.pause()
+        QTimer.singleShot(DEVICE_SETTLE_MS, resume)
+        return True
 
     def set_rate(self, rate: float):
         self.player.setPlaybackRate(rate)

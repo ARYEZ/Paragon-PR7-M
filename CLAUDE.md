@@ -16,7 +16,11 @@ the why of changes.
   QAudioOutput can't go above 100%), `PlaylistModel` (plain Python list model, never QStandardItemModel).
 - `pr7m/main_window.py`: QMediaPlayer + QAudioOutput + QAudioBufferOutput; MPC-HC's menus and keys (`_act(...,
   key=)` into `acts`); `_ask(kind)` for every question (tests: `window.answers`). `meta(md, key)` reads metadata
-  (PySide can't convert the codec enums from `value()`: falls back to `stringValue`). **Resume / favorite seeks wait
+  (PySide can't convert the codec enums from `value()`: falls back to `stringValue`). **Output device** (`follow_default_output`, MPC-HC's default renderer): after `audioOutputsChanged` settles
+  (DEVICE_SETTLE_MS), stop, then a moment later setDevice + resume via the pending seek. Never setDevice / a new
+  QAudioOutput while playing (freezes with the level meter attached, silent / crashes with pitch off) or right after
+  stop (Qt's audio thread needs the GIL that setDevice holds: deadlock). Tests: two real outputs (PulseAudio null sinks).
+  **Resume / favorite seeks wait
   for BufferedMedia** (`_apply_pending`): a seek during loading is dropped when playback starts. Frame step = pause +
   one frame's time (Qt has no frame step). Full screen re-parents `Controls` into the VideoView (floating, auto-hide).
   Qt exposes no chapters.

@@ -207,3 +207,52 @@ def test_selftest(films, tmp_path, qapp):
     clip, tone = got["played"]["01 Clip.avi"], got["played"]["03 Tone.wav"]
     assert clip["duration"] == 3000 and clip["video"] and clip["frames"] > 0
     assert tone["duration"] == 2000 and tone["audio"] and not tone["video"] and got["fonts"]
+
+
+def test_output_changes_are_followed_once_they_settle(window, wait):
+    """Windows announces a device change as several notifications: PR7-M follows the default once, after they stop."""
+    from pr7m import main_window
+    calls = []
+    window.device_timer.timeout.connect(lambda: calls.append(time.time()))
+    start = time.time()
+    for _ in range(3):
+        window.devices.audioOutputsChanged.emit()
+    assert window.device_timer.isActive() and not calls
+    assert wait(lambda: calls, 5) and len(calls) == 1
+    assert calls[0] - start >= main_window.DEVICE_SETTLE_MS / 1000 * 0.9
+    wait(lambda: False, 0.5)
+    assert len(calls) == 1
+
+
+def test_no_default_output_changes_nothing(window, monkeypatch):
+    from PySide6.QtMultimedia import QAudioDevice
+    monkeypatch.setattr(window, "default_output", lambda: QAudioDevice())
+    before = window.audio.device().id()
+    assert window.follow_default_output() is False and window.audio.device().id() == before
+
+
+@pytest.mark.parametrize("paused", [False, True])
+def test_a_new_default_output_takes_over_where_playback_was(window, films, wait, monkeypatch, paused):
+    """MPC-HC follows Windows' default output. Needs two real outputs (CI's runners have none; a PulseAudio with
+    two null sinks does here): the other one is made the 'default', and playing / paused carries on in place."""
+    from PySide6.QtMultimedia import QMediaDevices
+    outs = QMediaDevices.audioOutputs()
+    if len(outs) < 2:
+        pytest.skip("needs two audio outputs")
+    window.open_paths([str(films[2])])
+    assert wait(lambda: window.player.position() > 300, 15)
+    if paused:
+        window.player.pause()
+        assert wait(lambda: window.player.playbackState() == Paused, 5)
+    other = next(d for d in outs if d.id() != window.audio.device().id())
+    monkeypatch.setattr(window, "default_output", lambda: other)
+    before = window.player.position()
+    assert window.follow_default_output() is True
+    assert wait(lambda: window.audio.device().id() == other.id() and window.player.position() >= before - 50
+                and window.player.playbackState() == (Paused if paused else Playing), 10)
+    if not paused:
+        assert wait(lambda: window.player.position() > before + 200, 10)     # still playing, not from the start
+    else:
+        wait(lambda: False, 0.5)
+        assert abs(window.player.position() - before) < 100
+    assert window.follow_default_output() is False                           # already there
