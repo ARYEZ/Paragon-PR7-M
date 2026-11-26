@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3
+
+- The family list (`family.py`) knows the three newest Paragon apps: PR7-HW (hardware information), PR7-BK
+  (backups) and PR7-TM (terminal), so links between the apps and the PR7-U offer find them.
+
 ## 0.3.2
 
 - The family list (`family.py`) knows the four newest Paragon apps: PR7-HX (hex editor), PR7-DB (SQLite browser),
