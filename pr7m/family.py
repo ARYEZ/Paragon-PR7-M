@@ -1,10 +1,12 @@
 """The Paragon family's other apps on this computer (no Qt): found through their installers' uninstall entries
-(each AppId is permanent), else the default per-user folder; started with files or folders. Used for the
-family's links between apps, and to offer PR7-U (the family installer) from Check for Updates."""
+(each AppId is permanent), else the default per-user folder; on Linux (PR7-OS) by their launchers on the PATH
+(/usr/bin/pr7-e ...). Started with files or folders. Used for the family's links between apps, and to offer PR7-U
+(the family installer) from Check for Updates."""
 
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -34,9 +36,11 @@ UNINSTALL = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{}_is1"
 
 
 def find(app: str) -> str | None:
-    """The installed app's .exe, or None."""
-    if sys.platform != "win32" or app not in APPS:
+    """The installed app's .exe (Linux: its launcher), or None."""
+    if app not in APPS:
         return None
+    if sys.platform != "win32":                     # PR7-OS installs each app's launcher as /usr/bin/pr7-<x>
+        return shutil.which("pr7-" + app[4:].lower())
     import winreg
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, UNINSTALL.format(APPS[app])) as k:
@@ -58,9 +62,15 @@ def launch(app: str, args: list[str]) -> bool:
 
 
 def pr7e_for_folders() -> bool:
-    """Whether PR7-E's "Use PR7-E for Folders" is on (folders' default action is PR7-E's)."""
+    """Whether PR7-E's "Use PR7-E for Folders" is on (folders' default action is PR7-E's; Linux: PR7-E is the
+    default app for folders, as PR7-OS sets it)."""
     if sys.platform != "win32":
-        return False
+        try:
+            done = subprocess.run(["xdg-mime", "query", "default", "inode/directory"], capture_output=True, text=True,
+                                  timeout=5)
+            return done.stdout.strip() == "pr7-e.desktop"
+        except (OSError, subprocess.SubprocessError):
+            return False
     import winreg
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\Directory\shell") as k:
